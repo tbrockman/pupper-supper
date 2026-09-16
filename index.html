@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pupper Supper</title>
+<meta name="description" content="Plan a dog's daily diet and check it against the AAFCO adult-maintenance nutrient profile.">
+<meta name="theme-color" content="#22382E">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%95%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<header>
+  <h1>
+    <span class="logo" aria-hidden="true">🐕</span>
+    <span class="edit" data-handle="always"><input type="text" class="edit-in" id="title" value="Pupper Supper" data-f="title" aria-label="Diet name" spellcheck="false" autocomplete="off" maxlength="60"><span class="edit-mirror" aria-hidden="true"></span><button type="button" class="edit-pen" tabindex="-1" aria-label="Rename" title="Rename"><i data-icon="pencil" data-size="14"></i></button><button type="button" class="edit-cancel" tabindex="-1" aria-label="Cancel" title="Cancel (Esc)"><i data-icon="x" data-size="14"></i></button></span>
+    <div class="menu">
+      <button id="more" class="quiet iconbtn" aria-haspopup="menu" aria-expanded="false" aria-controls="menupop" title="Menu" aria-label="Menu"><i data-icon="more"></i></button>
+      <div class="menupop" id="menupop" role="menu" hidden>
+        <button role="menuitem" id="copylink"><i data-icon="link"></i>Copy link to this diet</button>
+        <button role="menuitem" id="new"><i data-icon="file-plus"></i>New empty diet</button>
+        <button role="menuitem" id="reset"><i data-icon="book"></i>Load the example diet</button>
+        <div class="sep" role="separator"></div>
+        <a role="menuitem" id="source" href="https://github.com/tbrockman/pupper-supper" target="_blank" rel="noopener"><i data-icon="code"></i>Source on GitHub <i data-icon="external" data-size="12"></i></a>
+        <button role="menuitem" id="about"><i data-icon="alert"></i>Disclaimer</button>
+      </div>
+    </div>
+  </h1>
+</header>
+
+<main>
+<section>
+  <h2><span>Diet</span> <span class="note">how they chow, converted to grams per day</span></h2>
+  <div class="searchbar">
+    <div class="qwrap">
+      <input type="text" id="q" placeholder="type an ingredient, e.g. sardines" aria-label="Search ingredients" autocomplete="off"
+        role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list">
+      <button type="button" id="keybtn" class="quiet iconbtn" title="USDA API key" aria-label="USDA API key" aria-haspopup="dialog" aria-expanded="false" aria-controls="keypop"><i data-icon="key"></i></button>
+      <div id="results" role="listbox" hidden></div>
+      <div id="keypop" class="keypop" role="dialog" aria-label="USDA API key" hidden>
+        <p>Searching USDA FoodData Central needs an API key. Without one the app uses USDA’s public demo key, which allows about 10 requests an hour for everyone on your network. Built-in ingredients never need a key.</p>
+        <label for="apikey">Your key</label>
+        <input type="password" id="apikey" placeholder="paste it here" autocomplete="off">
+        <div class="row">
+          <label class="sharekey" title="Append the key to links copied from the menu, so the recipient can search USDA too"><input type="checkbox" id="sharekey" disabled> include it in shared links</label>
+          <a href="https://fdc.nal.usda.gov/api-key-signup" target="_blank" rel="noopener">get a free key <i data-icon="external" data-size="12"></i></a>
+        </div>
+      </div>
+    </div>
+    <button id="go" title="Search USDA FoodData Central"><i data-icon="search"></i>Search USDA</button>
+    <button id="addfood" class="secondary" title="Add a food and type its nutrients yourself"><i data-icon="plus"></i>Custom food</button>
+    <div id="alerts" aria-live="polite"></div>
+  </div>
+  <div class="tscroll"><table id="tbl-foods"></table></div>
+  <p class="footnote">The amount field takes simple math, handy for batches: <code>400*2/10</code> is 400 g in a
+  10-cup batch fed 2 cups a day. Pick a unit and how often it is fed; everything is converted to grams per day.
+  Values per 100 g come from USDA FoodData Central, manufacturers, or estimates (marked ~). Changes are saved in
+  this browser, and the address bar always links to the current diet.</p>
+</section>
+
+<section>
+  <h2><span>Inputs</span><span class="note">about the dog</span></h2>
+  <div class="tscroll"><table id="tbl-in" aria-label="Inputs">
+    <thead><tr><th>Input</th><th class="num">value</th><th></th><th>gives</th></tr></thead>
+    <tbody>
+      <tr><td><label for="g-weight">Weight</label></td>
+        <td class="num"><input type="number" id="g-weight" step="0.5" min="0" data-g="weight" aria-label="Dog weight"></td>
+        <td class="unit"><select id="g-weightUnit" aria-label="Weight unit"><option value="kg">kg</option><option value="lb">lb</option></select></td>
+        <td class="status" id="w-status"></td></tr>
+      <tr><td><label for="g-activity">Activity</label> <span class="info" tabindex="0" role="note" data-tip="How much more than resting energy (RER = 70 × kg^0.75) the dog burns. Typical multipliers: 1.2–1.4 for an inactive or neutered adult, 1.6–1.8 for an active adult, 2–5 for working dogs or growth."><i data-icon="info" data-size="14"></i></span></td>
+        <td class="num"><input type="number" id="g-activity" step="0.1" min="0" data-g="activity" aria-label="Activity multiplier"></td><td class="unit">×RER</td>
+        <td class="status" id="a-status"></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2><span>Quick checks</span>
+    <span class="note">is it enough food, and is the calcium balanced</span></h2>
+  <div class="dash">
+    <div class="tscroll"><table id="tbl-vitals" aria-label="Quick checks">
+      <thead><tr><th>Metric</th><th class="num">value</th><th></th><th class="num c-target">target</th><th class="c-range">range</th><th>status</th></tr></thead>
+      <tbody id="vitals-out"></tbody>
+    </table></div>
+  </div>
+  <h2><span>Nutrients per 1,000 kcal <span class="info" tabindex="0" role="note" data-tip="Nutrients are compared per 1,000 kcal rather than per gram of food, so a rich diet and a bulky diet are judged the same way. The dot is this diet; the line is the AAFCO minimum; the shaded band is the allowed range up to the maximum, or an open-ended range when there is none."><i data-icon="info" data-size="14"></i></span></span>
+    <span class="note">checked against the <a href="https://www.aafco.org/wp-content/uploads/2023/01/Model_Bills_and_Regulations_Agenda_Midyear_2015_Final_Attachment_A.__Proposed_revisions_to_AAFCO_Nutrient_Profiles_PFC_Final_070214.pdf" target="_blank" rel="noopener">AAFCO adult-maintenance profile <i data-icon="external" data-size="12"></i></a>
+      <span class="info" tabindex="0" role="note" data-tip="The Association of American Feed Control Officials publishes the nutrient minimums (and some maximums) a dog food must meet to be labelled complete and balanced for adult dogs. This page uses the 2016 profile, expressed per 1,000 kcal of metabolisable energy so it applies whatever the dog’s size."><i data-icon="info" data-size="14"></i></span>
+      <button id="allcols" class="quiet" aria-pressed="false" title="Show the per-day and minimum columns">all columns</button></span></h2>
+  <div class="tscroll"><table id="tbl-an">
+    <thead><tr><th>Nutrient</th><th class="num c-day">per day</th><th class="num">/1,000 kcal</th>
+      <th class="num c-min">min</th><th class="c-range">range</th><th>status</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="footnote">Being between 100% and ~300% of a minimum is normal for complete foods. This is a
+  planning tool, not a veterinary formulation.</p>
+</section>
+</main>
+<footer id="disclaimer">
+  <i data-icon="alert"></i>
+  <p><strong>This was vibe-coded with an AI assistant.</strong> Its calculations and the food data it relies on to make them have not been
+  independently verified. Found a problem? <a href="https://github.com/tbrockman/pupper-supper" target="_blank" rel="noopener">Fork it on GitHub <i data-icon="external" data-size="12"></i></a>.</p>
+</footer>
+<div class="toast" id="toast"></div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+/* ---------- USDA FoodData Central search, with a localStorage cache ---------- */
+import { store } from "./state.js";
+import { NUTS } from "./data.js";
+import { BUNDLED } from "./bundled.js";
+
+const API="https://api.nal.usda.gov/fdc/v1";
+export const SIGNUP_URL="https://fdc.nal.usda.gov/api-key-signup";
+/** USDA's public key: rate-limited per network address. Limits from the API's x-ratelimit-limit header. */
+export const DEMO_KEY="DEMO_KEY", DEMO_LIMIT=10, KEY_LIMIT=1000;
+export const hasKey = ()=> !!currentKey;
+
+let currentKey = "";
+export function setApiKey(k){ currentKey = (k||"").trim(); }
+const apiKey = ()=> currentKey || DEMO_KEY;
+
+/* ---- built-in ingredients: instant, offline, no quota ---- */
+export function searchBundled(q){
+  const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if(!toks.length) return [];
+  return BUNDLED.map((b,i)=>({...b, i})).filter(b=> toks.every(t=> b.name.toLowerCase().includes(t))).slice(0,8);
+}
+export const bundledAt = i => BUNDLED[i];
+/** FoodData Central id a bundled entry was built from, so USDA results can be de-duplicated against it. */
+export const bundledFdcId = b => +(/USDA (\d+)/.exec(b.src||"")||[])[1] || null;
+
+export function cacheCount(){
+  let n=0; try{ for(let i=0;i<localStorage.length;i++) if(localStorage.key(i).startsWith("fdc.")) n++; }catch(e){}
+  return n;
+}
+
+/**
+ * Errors carry a `kind` the UI can act on:
+ *   demo-limit  USDA's shared DEMO_KEY is out of requests for this network
+ *   key-limit   the personal key has used its hourly quota
+ *   bad-key     USDA rejected the personal key
+ *   offline     the request never reached USDA
+ *   http        anything else
+ */
+async function fetchJson(url){
+  let r;
+  try{ r = await fetch(url); }
+  catch(e){ const err = new Error("Could not reach USDA FoodData Central. Check your connection and try again."); err.kind="offline"; throw err; }
+  if(r.ok) return r.json();
+  const limited = r.status===429 || (r.status===403 && !currentKey);
+  const err = new Error(
+    limited && !currentKey ? "USDA\u2019s shared demo key has no requests left right now."
+    : limited ? "This API key has used its hourly USDA quota."
+    : r.status===403 ? "USDA rejected this API key."
+    : "USDA FoodData Central returned an error ("+r.status+")." );
+  err.kind = limited ? (currentKey ? "key-limit" : "demo-limit") : r.status===403 ? "bad-key" : "http";
+  throw err;
+}
+/**
+ * Search results already carry each food's nutrients (per 100 g, for every
+ * data type), so `per100` is filled in here and adding a result needs no
+ * second request. It is null when the hit came back without usable numbers.
+ */
+export async function search(q){
+  const key="fdc.s2."+q.toLowerCase();
+  const hit=store.get(key); if(hit) return hit;
+  const j = await fetchJson(`${API}/foods/search?api_key=${apiKey()}&query=${encodeURIComponent(q)}&pageSize=10&dataType=${encodeURIComponent("Foundation,SR Legacy,Branded")}`);
+  const foods=(j.foods||[]).map(x=>{
+    const per100 = mapNutrients(x);
+    return {fdcId:x.fdcId, description:x.description, dataType:x.dataType, brandOwner:x.brandOwner||"", per100: per100.some(v=>v>0) ? per100 : null};
+  });
+  store.set(key,foods); return foods;
+}
+/* cache only the mapped 24 numbers, not the raw FDC JSON (which can be
+   hundreds of KB and silently overflow localStorage) */
+export async function nutrientsFor(id){
+  const key="fdc.d."+id;
+  const hit=store.get(key); if(hit) return hit;
+  const food = await fetchJson(`${API}/food/${id}?api_key=${apiKey()}&format=abridged`);
+  const rec = {dataType:food.dataType||"", per100:mapNutrients(food)};
+  store.set(key,rec); return rec;
+}
+
+/* FDC nutrient mapping → our 24 columns.
+   Each candidate is [modernId, legacyNumberString, multiplier]; first found wins.
+   FDC responses carry identifiers inconsistently: full details use
+   nutrient.id / nutrient.number / amount, abridged details use number / amount,
+   and search hits use nutrientId / nutrientNumber / value. Index by id and number. */
+const MAP=[
+ [[1008,"208",1],[2047,"957",1],[2048,"958",1]],          // kcal
+ [[1003,"203",1]], [[1004,"204",1],[1085,"298",1]],       // protein, fat
+ [[1087,"301",1]], [[1091,"305",1]], [[1092,"306",1]],    // Ca P K
+ [[1093,"307",1]], [[1090,"304",1]], [[1089,"303",1]],    // Na Mg Fe
+ [[1095,"309",1]], [[1098,"312",1]], [[1101,"315",1]],    // Zn Cu Mn
+ [[1103,"317",1]], [[1100,"314",1]],                      // Se, iodine
+ [[1104,"318",1],[1106,"320",3.33]],                      // vit A IU, else RAE ug x3.33
+ [[1110,"324",1],[1114,"328",40]],                        // vit D IU, else ug x40
+ [[1109,"323",1.49]],                                     // vit E mg alpha-toc x1.49
+ [[1165,"404",1]], [[1166,"405",1]], [[1175,"415",1]],    // B1 B2 B6
+ [[1178,"418",1]], [[1177,"417",1],[1187,"431",1]],       // B12, folate
+ [[1180,"421",1]], "EPA_DHA"];
+const EPA=[1278,"629"], DHA=[1272,"621"];
+if(MAP.length!==NUTS.length) throw new Error("FDC MAP does not match NUTS");
+export function mapNutrients(food){
+  const byId={}, byNum={};
+  (food.foodNutrients||[]).forEach(fn=>{
+    const n = fn.nutrient||{};
+    const id  = n.id ?? fn.nutrientId;
+    const num = String(n.number ?? fn.nutrientNumber ?? fn.number ?? "");
+    const a   = fn.amount ?? fn.value;
+    if(a==null) return;
+    if(id!=null && byId[id]==null) byId[id]=+a;
+    if(num && byNum[num]==null) byNum[num]=+a;
+  });
+  const pick=(id,num)=> byId[id]!=null? byId[id] : (byNum[num]!=null? byNum[num] : null);
+  return MAP.map(spec=>{
+    if(spec==="EPA_DHA") return (pick(...EPA)||0)+(pick(...DHA)||0);
+    for(const[id,num,m]of spec){ const v=pick(id,num); if(v!=null) return v*m; }
+    return 0; });
+}
