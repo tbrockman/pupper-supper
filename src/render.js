@@ -116,7 +116,7 @@ export function initTooltips(){
   const tip = document.getElementById("tip");
   let current = null;
   function show(el){
-    current = el;
+    current = el; shownAt = performance.now();
     tip.textContent = el.dataset.tip; tip.hidden = false;
     const r = el.getBoundingClientRect(), pad = 8, vw = window.innerWidth, vh = window.innerHeight;
     tip.style.maxWidth = Math.min(280, vw - 2*pad) + "px";
@@ -128,12 +128,19 @@ export function initTooltips(){
     tip.style.left = left + "px"; tip.style.top = top + "px";
   }
   function hide(){ current = null; tip.hidden = true; }
+  let shownAt = 0;
   const target = e => e.target.closest?.(".info[data-tip]");
-  document.addEventListener("mouseover", e=>{ const el = target(e); if(el && el!==current) show(el); });
-  document.addEventListener("mouseout", e=>{ const el = target(e); if(el && !el.contains(e.relatedTarget)) hide(); });
+  // hover only for a real mouse: a touch tap emits emulated hover events right before its click
+  document.addEventListener("pointerover", e=>{ if(e.pointerType!=="mouse") return; const el = target(e); if(el && el!==current) show(el); });
+  document.addEventListener("pointerout", e=>{ if(e.pointerType!=="mouse") return; const el = target(e); if(el && !el.contains(e.relatedTarget)) hide(); });
   document.addEventListener("focusin", e=>{ const el = target(e); if(el) show(el); });
   document.addEventListener("focusout", e=>{ if(target(e)) hide(); });
-  document.addEventListener("click", e=>{ const el = target(e); if(el){ el===current && !tip.hidden ? hide() : show(el); } });
+  document.addEventListener("click", e=>{
+    const el = target(e);
+    if(!el){ if(current) hide(); return; }                       // a tap anywhere else dismisses
+    if(el===current && !tip.hidden && performance.now() - shownAt > 400) hide(); // second tap closes
+    else show(el);                                               // (a click right after hover/focus opened it is not a toggle)
+  });
   document.addEventListener("keydown", e=>{ if(e.key==="Escape") hide(); });
   window.addEventListener("scroll", ()=>{ if(current) show(current); }, { passive:true });
 }
