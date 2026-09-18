@@ -37,7 +37,7 @@ export function f(name, amount, unit, per, src, per100){
 
 /** Empty item for "Custom food". */
 export function blankFood(){
-  return f("New food", "0", "g", "day", "custom", NUTS.map(()=>0));
+  return f("New food", "0", "g", "day", "A manually added food item", NUTS.map(()=>0));
 }
 
 export const EMPTY = { title: DEFAULT_TITLE, weight: 20, weightUnit: "kg", activity: 1.6, foods: [] };
