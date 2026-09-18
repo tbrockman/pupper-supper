@@ -11,7 +11,7 @@ test("maps all three FoodData Central nutrient shapes", () => {
   const hit      = { foodNutrients: [{ nutrientId: 1008, nutrientNumber: "208", value: 150 }, { nutrientId: 1003, nutrientNumber: "203", value: 20 }] };
   for (const food of [full, abridged, hit]) {
     const m = mapNutrients(food);
-    assert.equal(m[0], 150); assert.equal(m[1], 20); assert.equal(m.length, 24);
+    assert.equal(m[0], 150); assert.equal(m[1], 20); assert.equal(m.length, NUTS.length);
   }
 });
 
@@ -45,9 +45,34 @@ test("converts USDA units into the AAFCO table's units", () => {
   // masses pass straight through in the units the table expects (mg, µg)
   const m = mapNutrients(hit([1087, "301", 56], [1103, "317", 30.7], [1178, "418", 0.89], [1180, "421", 293.8]));
   assert.equal(m[j("Calcium")], 56); assert.equal(m[j("Selenium")], 30.7); assert.equal(m[j("Vitamin B12")], 0.89); assert.equal(m[j("Choline")], 293.8);
+  // fatty acids and the two added B vitamins
+  const fa = mapNutrients(hit([1269, "618", 1.5], [1270, "619", 0.2], [1271, "620", 0.05], [1293, "646", 1.9], [1167, "406", 6], [1170, "410", 1.5]));
+  assert.equal(fa[j("Linoleic acid")], 1.5); assert.equal(fa[j("Alpha-linolenic acid")], 0.2); assert.equal(fa[j("Arachidonic acid")], 0.05);
+  assert.equal(fa[j("Polyunsaturated fat")], 1.9); assert.equal(fa[j("Niacin B3")], 6); assert.equal(fa[j("Pantothenic acid B5")], 1.5);
+  assert.equal(mapNutrients(hit([1316, "675", 2.2]))[j("Linoleic acid")], 2.2, "newer n-6 c,c field is a fallback");
   // a nutrient the record does not carry is null (unknown), never 0 or NaN; a reported 0 stays 0
   assert.ok(mapNutrients({ foodNutrients: [{ nutrientId: 1003, value: null }] }).every(v => v === null));
   assert.ok(mapNutrients({}).every(v => v === null));
   const z = mapNutrients(hit([1100, "314", 0], [1003, "203", 20]));
   assert.equal(z[j("Iodine")], 0); assert.equal(z[j("Protein")], 20); assert.equal(z[j("Calcium")], null);
+});
+
+test("remembered USDA hits are searched like built-ins, de-duplicated, and skipped when stale", async () => {
+  const { searchCached } = await import("../src/fdc.js");
+  const full = NUTS.map(() => 1), stale = NUTS.slice(0, 24).map(() => 1);
+  const cache = {
+    "fdc.s2.sardine": JSON.stringify([{ fdcId: 1, description: "Fish, sardine, Atlantic, canned in oil", dataType: "SR Legacy", per100: full },
+                                      { fdcId: 2, description: "Sardines in tomato sauce", brandOwner: "Acme", dataType: "Branded", per100: stale }]),
+    "fdc.s2.fish": JSON.stringify([{ fdcId: 1, description: "Fish, sardine, Atlantic, canned in oil", dataType: "SR Legacy", per100: full },
+                                   { fdcId: 3, description: "Fish, cod, Atlantic, raw", dataType: "SR Legacy", per100: full }]),
+    "lady.state": "{}",
+  };
+  const keys = Object.keys(cache), saved = globalThis.localStorage;
+  globalThis.localStorage = { length: keys.length, key: i => keys[i], getItem: k => cache[k] ?? null, setItem(){} };
+  try {
+    assert.deepEqual(searchCached("sardine canned").map(x => x.fdcId), [1]);
+    assert.deepEqual(searchCached("fish").map(x => x.fdcId).sort(), [1, 3], "one entry per id across queries");
+    assert.deepEqual(searchCached("acme").map(x => x.fdcId), [], "a hit cached before the table grew is not offered");
+    assert.deepEqual(searchCached("  "), []);
+  } finally { globalThis.localStorage = saved; }
 });

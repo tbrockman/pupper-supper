@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NUTS, UNITS, PERIODS, EXAMPLE, iKcal, iCa, iP } from "../src/data.js";
+import { NUTS, UNITS, PERIODS, EXAMPLE, DISPLAY, NOTES, SOURCES, iKcal, iCa, iP, iVitE, iEPA, iLA, iALA, iAA, iPUFA } from "../src/data.js";
 import { sanitize, setState, totals, totalGrams, gramsPerDay, weightKg, missing, unknownOf } from "../src/state.js";
-import { analyze, judge, caToP, rerFor, merFor } from "../src/analysis.js";
+import { analyze, judge, caToP, ratio, rerFor, merFor, N6N3_MAX, E_PUFA_MIN } from "../src/analysis.js";
 import { BUNDLED } from "../src/bundled.js";
 
 const near = (a, b, rel = 1e-6, msg) => assert.ok(Math.abs(a - b) <= rel * Math.max(1, Math.abs(b)), msg ?? `${a} ≈ ${b}`);
@@ -93,11 +93,11 @@ test("unparseable, zero and negative amounts contribute nothing; negative nutrie
 /* ---------- judging a nutrient ---------- */
 test("judge scales the AAFCO per-1,000 kcal profile by the dog's energy need", () => {
   const mer = 2000; // so a per-1,000 kcal minimum doubles
-  assert.deepEqual(judge(90, mer, 45, null), { dayMin: 90, dayMax: null, pct: 1, status: "marginal" });
+  assert.deepEqual(judge(90, mer, 45, null), { dayMin: 90, dayMax: null, dayAdv: null, pct: 1, status: "marginal" });
   assert.equal(judge(89.9, mer, 45, null).status, "low");
   assert.equal(judge(108, mer, 45, null).status, "ok");        // 120 %
   assert.equal(judge(107, mer, 45, null).status, "marginal");
-  assert.deepEqual(judge(3000, mer, 1250, 6250), { dayMin: 2500, dayMax: 12500, pct: 1.2, status: "ok" });
+  assert.deepEqual(judge(3000, mer, 1250, 6250), { dayMin: 2500, dayMax: 12500, dayAdv: null, pct: 1.2, status: "ok" });
   assert.equal(judge(12500.1, mer, 1250, 6250).status, "high");
   assert.equal(judge(0, mer, 1250, 6250).status, "low");
   assert.equal(judge(5, mer, null, null).status, "ok");        // no minimum: nothing to fail
@@ -202,8 +202,13 @@ test("the AAFCO table is the 2016 adult-maintenance profile per 1,000 kcal", () 
   assert.deepEqual(byName["Vitamin D"], { u: "IU", mn: 125, mx: 750 });
   assert.deepEqual(byName["Iodine"], { u: "µg", mn: 250, mx: 2750 });
   assert.deepEqual(byName["Vitamin B12"], { u: "µg", mn: 7, mx: null });
-  assert.equal(NUTS.length, 24);
+  assert.deepEqual(byName["Linoleic acid"], { u: "g", mn: 2.8, mx: null });
+  assert.deepEqual(byName["Niacin B3"], { u: "mg", mn: 3.4, mx: null });
+  assert.deepEqual(byName["Pantothenic acid B5"], { u: "mg", mn: 3, mx: null });
+  assert.equal(NUTS.length, 30);
   assert.equal(NUTS[iKcal][0], "Energy"); assert.equal(NUTS[iCa][0], "Calcium"); assert.equal(NUTS[iP][0], "Phosphorus");
+  assert.deepEqual([...DISPLAY].sort((a, b) => a - b), NUTS.map((_, j) => j), "DISPLAY is a permutation of the table");
+  for (const f of EXAMPLE.foods) assert.equal(f.per100.length, NUTS.length, f.name);
 });
 
 /* ---------- unknown values ---------- */
@@ -224,6 +229,96 @@ test("sanitize keeps null for unknown values and treats blank or garbage the sam
   const s = sanitize({ foods: [{ name: "x", amount: "1", per100: [1, null, undefined, "", "abc", -3, "4"] }] });
   assert.deepEqual(s.foods[0].per100.slice(0, 7), [1, null, null, null, null, 0, 4]);
   assert.ok(s.foods[0].per100.slice(7).every(v => v === null), "missing columns are unknown, not zero");
-  assert.deepEqual(unknownOf(s.foods[0]), [1, 2, 3, 4, ...Array.from({ length: 17 }, (_, i) => i + 7)]);
+  assert.deepEqual(unknownOf(s.foods[0]), [1, 2, 3, 4, ...Array.from({ length: NUTS.length - 7 }, (_, i) => i + 7)]);
   assert.deepEqual(unknownOf({ per100: NUTS.map(() => 0) }), []);
+});
+
+/* ---------- advisory upper levels ---------- */
+test("advisory levels exist only for nutrients AAFCO leaves open-ended, sit above the minimum, and cite a source", async () => {
+  const { ADVISORY, SOURCES } = await import("../src/data.js");
+  for (const [name, a] of Object.entries(ADVISORY)) {
+    const row = NUTS.find(n => n[0] === name);
+    assert.ok(row, `${name} is a nutrient`);
+    assert.equal(row[3], null, `${name} has no AAFCO maximum`);
+    assert.ok(a.max > row[2], `${name} advisory ${a.max} is above the minimum ${row[2]}`);
+    assert.ok(a.src.length && a.src.every(k => SOURCES[k]?.url.startsWith("https://")), `${name} has a linked source`);
+    assert.ok(a.basis && a.why);
+  }
+  assert.deepEqual(Object.keys(ADVISORY).sort(), ["Copper", "Iron", "Magnesium", "Manganese", "Sodium", "Zinc"]);
+});
+
+test("a diet over an advisory level is 'watch'; an AAFCO maximum still wins as 'high'", () => {
+  const mer = 2000;
+  assert.equal(judge(13, mer, 1.83, null, 7).status, "ok");        // copper 6.5 mg/1,000 kcal
+  assert.equal(judge(14.1, mer, 1.83, null, 7).status, "watch");   // 7.05 mg/1,000 kcal
+  assert.equal(judge(14.1, mer, 1.83, null, 7).dayAdv, 14);
+  assert.equal(judge(3000, mer, 125, 750, 800).status, "high");    // vitamin D: AAFCO max applies, advisory ignored
+  assert.equal(judge(3000, mer, 125, 750, 800).dayAdv, null);
+  assert.equal(judge(5, 0, 1.83, null, 7).status, "unknown");
+  // through analyze(): copper-heavy diet from beef liver
+  const liver = bundled("Beef liver, raw").per100, cu = idx("Copper");
+  const heavy = analyze(diet([food("liver", 900, "g", "day", liver)]));   // ≈ 88 mg copper/day for a ~1,764 kcal need
+  assert.equal(heavy.rows[cu].status, "watch");
+  near(heavy.rows[cu].dayAdv, 7 * heavy.mer / 1000, 1e-9);
+  assert.equal(heavy.rows[idx("Vitamin A")].status, "high");             // liver's vitamin A trips the real AAFCO max
+  const light = analyze(diet([food("liver", 50, "g", "day", liver)]));
+  assert.notEqual(light.rows[cu].status, "watch");
+});
+
+/* ---------- the two fatty-acid balances ---------- */
+test("omega-6 : omega-3 and vitamin E : PUFA follow AAFCO's rules", () => {
+  assert.equal(ratio(0, 0), NaN); assert.equal(ratio(3, 0), Infinity); assert.equal(ratio(3, 1.5), 2);
+  const per = NUTS.map(() => 0); per[0] = 400; per[iLA] = 6; per[iAA] = 0.1; per[iALA] = 0.1; per[iEPA] = 0.05; per[iVitE] = 0.5; per[iPUFA] = 7;
+  const a = analyze(diet([food("oil-heavy", 441, "g", "day", per)]));
+  near(a.n6n3.value, 6.1 / 0.15, 1e-9); assert.equal(a.n6n3.status, "high");           // 40.7 : 1
+  near(a.ePufa.value, 0.5 / 7, 1e-9); assert.equal(a.ePufa.status, "low");             // 0.07 IU/g
+  per[iEPA] = 1; per[iVitE] = 5;
+  const b = analyze(diet([food("with fish oil", 441, "g", "day", per)]));
+  assert.equal(b.n6n3.status, "ok"); near(b.n6n3.value, 6.1 / 1.1, 1e-9);
+  assert.equal(b.ePufa.status, "ok"); near(b.ePufa.value, 5 / 7, 1e-9);
+  const e = analyze(diet([]));
+  assert.equal(e.n6n3.status, "unknown"); assert.equal(e.ePufa.status, "unknown");
+  // exactly at the limits is still fine
+  assert.ok(N6N3_MAX === 30 && E_PUFA_MIN === 0.6);
+  const edge = NUTS.map(() => 0); edge[0] = 100; edge[iLA] = 30; edge[iALA] = 1; edge[iVitE] = 0.6; edge[iPUFA] = 1;
+  const c = analyze(diet([food("edge", 100, "g", "day", edge)]));
+  assert.equal(c.n6n3.status, "ok"); assert.equal(c.ePufa.status, "ok");
+  // unknown inputs are listed
+  const unk = NUTS.map(() => 0); unk[0] = 100; unk[iPUFA] = null;
+  const m = analyze(diet([food("mystery", 100, "g", "day", unk)])).ePufa;
+  assert.deepEqual(m.missing.map(x => x.name), ["mystery"]);
+  assert.equal(m.status, "unknown", "a balance with an unreported input is not judged");
+});
+
+test("the example diet holds all three balances and the symptom notes cite sources", () => {
+  setState(structuredClone(EXAMPLE));
+  const a = analyze();
+  assert.equal(a.n6n3.status, "ok"); assert.equal(a.ePufa.status, "ok");
+  for (const [name, n] of Object.entries(NOTES)) {
+    assert.ok(NUTS.some(r => r[0] === name), `${name} is a nutrient`);
+    assert.ok(n.excess || n.deficit || n.breeds, `${name} says something`);
+    assert.ok(n.src.length && n.src.every(k => SOURCES[k]?.url.startsWith("https://")), `${name} cites a source`);
+  }
+  for (const name of ["Copper", "Zinc", "Fat", "Calcium"]) assert.ok(NOTES[name].breeds, `${name} has a breed note`);
+});
+
+/* ---------- backfilling blanks from the built-in table ---------- */
+test("backfill fills only blanks, from a built-in matched by USDA id or by name, and never touches typed values", async () => {
+  const { backfill } = await import("../src/state.js");
+  const egg = bundled("Egg, whole, raw");
+  const old24 = egg.per100.slice(0, 24).map((v, j) => j === 1 ? 99 : v);   // a diet saved before the table grew, protein edited by hand
+  const st = diet([
+    { name: "Eggs", amount: "60", unit: "g", per: "day", src: "USDA 171287 · 6 eggs per batch", per100: old24 },
+    { name: "egg, whole, raw", amount: "50", unit: "g", per: "day", src: "typed in", per100: old24 },
+    { name: "Mystery treat", amount: "10", unit: "g", per: "day", src: "~estimate", per100: old24 },
+  ]);
+  assert.ok(st.foods.every(f => f.per100.slice(24).every(v => v === null)), "the six added nutrients start unknown");
+  const n = backfill(st);
+  assert.equal(n, 12, "six values for each of the two matched foods");
+  for (const f of st.foods.slice(0, 2)) {
+    assert.deepEqual(f.per100.slice(24), egg.per100.slice(24));
+    assert.equal(f.per100[1], 99, "the hand-edited protein is kept");
+  }
+  assert.ok(st.foods[2].per100.slice(24).every(v => v === null), "an unrecognised food is left alone");
+  assert.equal(backfill(st), 0, "nothing left to fill");
 });

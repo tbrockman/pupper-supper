@@ -1,6 +1,6 @@
-import { NUTS, UNITS, PERIODS, iKcal } from "./data.js";
+import { NUTS, UNITS, PERIODS, SOURCES, NOTES, PURPOSE, DISPLAY, iKcal } from "./data.js";
 import { S, gramsPerDay, unknownOf } from "./state.js";
-import { analyze, ENERGY_TOLERANCE } from "./analysis.js";
+import { analyze, ENERGY_TOLERANCE, N6N3_MAX, E_PUFA_MIN } from "./analysis.js";
 import { icon } from "./icons.js";
 import { editable, fitAll } from "./editable.js";
 
@@ -9,7 +9,7 @@ export const esc = s => String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;
 export const fmt = v => !Number.isFinite(v) ? "\u2013" : v>=100? v.toFixed(0) : v>=10? v.toFixed(1) : v.toFixed(2);
 export const gramsText = it => { const g = gramsPerDay(it); return Number.isFinite(g) ? `${g.toFixed(g<10?1:0)} g` : "?"; };
 const opts = (obj, sel) => Object.keys(obj).map(k=>`<option value="${k}" ${k===sel?"selected":""}>${k}</option>`).join("");
-export const info = tip => `<span class="info" tabindex="0" role="note" data-tip="${esc(tip)}">${icon("info",14)}</span>`;
+export const info = (tip, size=14, attrs="") => `<span ${attrs.includes("class=")?"":'class="info" '}tabindex="0" role="note" data-tip="${esc(tip)}"${attrs}>${icon("info",size)}</span>`;
 /** Amber marker for a value that rests on missing data; `attrs` can add e.g. a data-jump target. */
 export const warn = (tip, size=13, attrs="") => `<span class="info warn" tabindex="0" role="note" data-tip="${esc(tip)}"${attrs}>${icon("alert",size)}</span>`;
 /** "A", "A and B", "A, B, and C" */
@@ -55,26 +55,27 @@ export function renderFoods(){
 }
 
 /* ---------- analysis ---------- */
-/** A tick number under a strip at pos % (centred on its marker by placeLabels()). */
-const tick = (text, pos) => text ? `<span class="tk" style="--x:${pos}%">${esc(text)}</span>` : "";
+/** A tick number under a strip at pos % (centred there by placeLabels()); `adv` marks an advisory level rather than an AAFCO maximum. */
+const tick = (text, pos, adv=false) => text ? `<span class="tk${adv?" adv":""}" style="--x:${pos}%">${esc(text)}</span>` : "";
 /** value label above the dot, the strip, and the tick numbers beneath: one block, as tall as a name with its unit line */
 const range = (inner, ticks, pos, label) =>
   `<div class="range"><div class="vlabel"><span class="vl" style="--x:${pos}%">${esc(label)}</span></div><div class="strip">${inner}</div><div class="ticks">${ticks}</div></div>`;
 /**
  * Centre every label on its point: the value label on the dot, each tick on
- * its marker. A label shifts only as far as it must to stay within the strip,
- * and two ticks that would overlap are nudged apart.
+ * the band edge it names. Labels sit above and below the strip, on different
+ * lines from the neighbouring cells' text, so one centred on an end of the
+ * strip simply spills past it. Two ticks that would overlap are nudged apart.
  */
 export function placeLabels(){
-  const slack = 4, dotR = 4.5;
+  const dotR = 4.5;
   document.querySelectorAll(".range").forEach(r=>{
-    const w = r.offsetWidth;
+    const w = r.clientWidth;
     const at = el => parseFloat(el.style.getPropertyValue("--x")) / 100 * w;
-    const clampTo = (el, x) => { const half = el.offsetWidth/2; return Math.max(half - slack, Math.min(w - half + slack, x)); };
     const vl = r.querySelector(".vl");
-    if(vl) vl.style.left = clampTo(vl, Math.max(dotR, Math.min(w - dotR, at(vl)))) + "px";   // where the dot really is
+    if(vl) vl.style.left = Math.max(dotR, Math.min(w - dotR, at(vl))) + "px";   // where the dot really is
+    // an end tick is centred where the rounded band visibly ends (its cap's centre), which is also where the dot stops
     const tks = [...r.querySelectorAll(".tk")];
-    const xs = tks.map(t => clampTo(t, at(t)));
+    const xs = tks.map(t => Math.max(dotR, Math.min(w - dotR, at(t))));
     if(tks.length===2){                                       // keep min and max apart by a small gap
       const gap = 6, need = tks[0].offsetWidth/2 + tks[1].offsetWidth/2 + gap - (xs[1] - xs[0]);
       if(need > 0){ xs[0] -= need/2; xs[1] += need/2; }
@@ -90,25 +91,30 @@ export function placeLabels(){
  * the strip. Log scale, so a value twice over reads the same as one twice
  * under. Ticks beneath give the minimum and maximum in the row's unit.
  */
-function strip(v, mn, mx, label, fmtTick=fmt){
-  if(!(mn>0)) return range("", "", 0, label);
-  v = Number.isFinite(v) ? v : v>0 ? (mx ?? mn)*3 : 0;         // an infinite ratio sits well past the end
-  const below = v < mn, above = mx!=null && v > mx;
+function strip(v, mn, mx, label, fmtTick=fmt, adv=null, noMin=false){
+  if(!(mn>0)) return range(`<div class="dot" style="--x:50%"></div>`, "", 50, label);   // nothing to judge against: the value alone
+  v = Number.isFinite(v) ? v : v>0 ? (mx ?? adv ?? mn)*3 : 0;  // an infinite ratio sits well past the end
+  const top = mx ?? adv, isAdv = mx==null && adv!=null;           // an advisory level stands in for a missing maximum
+  const below = v < mn, above = top!=null && v > top;
   let lo = below ? (v>0 ? v/1.15 : 0) : mn;
-  let hi = above ? v*1.15 : (mx ?? Math.max(v, mn)*1.3);
+  let hi = above ? v*1.15 : (top ?? Math.max(v, mn)*1.3);
   // the acceptable range keeps at least half the strip; a value further out than that sits at the edge
-  lo = Math.max(lo, mn*mn/(mx ?? hi));
-  if(above) hi = Math.min(hi, mx*mx/mn);
-  const pos = x => Math.max(0, Math.min(100, 100*Math.log(Math.max(x,lo)/lo)/Math.log(hi/lo)));
-  const bandL = pos(mn), bandR = mx!=null ? pos(mx) : 100, dot = pos(v);
+  lo = Math.max(lo, mn*mn/(top ?? hi));
+  if(above) hi = Math.min(hi, top*top/mn);
+  // a ceiling-only check (the omega ratio) runs linearly from 0 to its ceiling: a log scale has no zero to start from
+  const pos = noMin ? x => Math.max(0, Math.min(100, 100*x/hi))
+                    : x => Math.max(0, Math.min(100, 100*Math.log(Math.max(x,lo)/lo)/Math.log(hi/lo)));
+  const bandL = noMin ? 0 : pos(mn), bandR = top!=null ? pos(top) : 100, dot = pos(v);
+  // the band's edges are the minimum and maximum; the tick numbers beneath them say which is which
   return range(`<div class="band" style="left:${bandL}%; width:${bandR-bandL}%"></div>
-    <div class="minm" style="left:${bandL}%"></div>${mx!=null?`<div class="minm" style="left:${bandR}%"></div>`:""}
     <div class="dot" style="--x:${dot}%"></div>`,
-    tick(fmtTick(mn), bandL) + (mx!=null ? tick(fmtTick(mx), bandR) : ""), dot, label);
+    tick(fmtTick(noMin ? 0 : mn), bandL) + (top!=null ? tick(fmtTick(top), bandR, isAdv) : ""), dot, label);
 }
 const pctText = p => Number.isFinite(p) ? (100*p).toFixed(0)+"%" : "?";
 export function renderAnalysis(){
   const a = analyze(), { kcal, rer, mer, ePct, caP } = a;
+  const missWarn = (what, list_) => list_.length ? " " + warn(`${what} is not reported for: ${list(list_.map(m=>m.name))}.`) : "";
+  const ratioText = (v, dp=2) => Number.isFinite(v) ? v.toFixed(dp) : v===Infinity ? "\u221e" : "\u2013";
   const tol = (100*ENERGY_TOLERANCE).toFixed(0);
   const vrow = (cls, name, tip, strip, status, sub="") =>
     `<tr class="${cls}"><td>${name}${tip?" "+info(tip):""}${sub?`<span class="src" style="display:block">${sub}</span>`:""}</td>
@@ -127,24 +133,42 @@ export function renderAnalysis(){
         strip(kcal, mer*(1-ENERGY_TOLERANCE), mer*(1+ENERGY_TOLERANCE), `${kcal.toFixed(0)} kcal`, v=>v.toFixed(0)),
         a.energy==="unknown" ? "enter the dog\u2019s weight" : `${pctText(ePct)} of need${a.energy==="high"?" \u00b7 overfeeding":a.energy==="low"?" \u00b7 underfeeding":""}`,
         `in ${a.grams.toFixed(0)} g of food`)
-  + vrow(caStatus==="within range"?"okrow":"low", "Ca : P ratio",
+  + vrow(caStatus==="within range"?"okrow":"low", "Ca : P ratio" + missWarn("Calcium or phosphorus", a.caPMissing),
         "Calcium to phosphorus by weight. Meat is phosphorus-rich, so home-cooked diets usually need a calcium source to land between 1:1 and 2:1.",
-        strip(Number.isNaN(caP)?0:caP, 1, 2, caText, v=>v.toFixed(1)), caStatus);
+        strip(Number.isNaN(caP)?0:caP, 1, 2, caText, v=>v.toFixed(1)), caStatus)
+  + vrow(a.n6n3.status==="ok"?"okrow":a.n6n3.status==="high"?"low":"", "Omega-6 : Omega-3" + missWarn("A fatty acid", a.n6n3.missing),
+        `AAFCO caps (linoleic + arachidonic) : (alpha-linolenic + EPA + DHA) at ${N6N3_MAX}:1 for adult dogs. Omega-3 has no minimum of its own; enough is needed to hold the ratio. Fish, fish oil and flaxseed lower it.`,
+        strip(Number.isNaN(a.n6n3.value)?0:a.n6n3.value, 1, N6N3_MAX, ratioText(a.n6n3.value, 1) + " : 1", v=>v.toFixed(0), null, true),
+        a.n6n3.status==="unknown" ? (a.n6n3.missing.length ? "incomplete fatty-acid data" : "no fatty-acid data") : a.n6n3.status==="high" ? `above ${N6N3_MAX}:1 \u00b7 add omega-3` : `within ${N6N3_MAX}:1`)
+  + vrow(a.ePufa.status==="ok"?"okrow":a.ePufa.status==="low"?"low":"", "Vitamin E : PUFA" + missWarn("Vitamin E or polyunsaturated fat", a.ePufa.missing),
+        `AAFCO asks for at least ${E_PUFA_MIN} IU of vitamin E per gram of polyunsaturated fat, since vitamin E is used up protecting those fats. Adding fish oil raises the need.`,
+        strip(Number.isNaN(a.ePufa.value)?0:a.ePufa.value, E_PUFA_MIN, null, ratioText(a.ePufa.value) + " IU/g", v=>v.toFixed(1)),
+        a.ePufa.status==="unknown" ? (a.ePufa.missing.length ? "incomplete data" : "no data") : a.ePufa.status==="low" ? `below ${E_PUFA_MIN} IU/g \u00b7 add vitamin E` : `at least ${E_PUFA_MIN} IU/g`);
 
-  const rows = a.rows.map(r=>{
+  const srcAttrs = keys => { const sr = SOURCES[keys[0]]; return sr ? ` data-src="${esc(sr.url)}" data-src-title="${esc(sr.title)}"` : ""; };
+  const rows = DISPLAY.map(j=>a.rows[j]).map(r=>{
     if(r.j===iKcal) return "";
+    const note = NOTES[r.name];
+    const breeds = note?.breeds ? " " + info(note.breeds, 12, srcAttrs(note.src) + ` class="info breed"`) : "";
     const isEPA = r.name==="EPA+DHA", u = r.unit;
-    const cls = { high:"high", low:"low", marginal:"marg", ok:"okrow", unknown:"" }[r.status];
+    const cls = { high:"high", watch:"marg", low:"low", marginal:"marg", ok:"okrow", unknown:"" }[r.status];
     const ge = r.missing.length ? "\u2265 " : "";   // a lower bound when some food's value is unknown
+    const advTip = r.adv ? `${r.name} has no AAFCO maximum. The dashed line is ${r.adv.basis}: ${fmt(r.adv.max)} ${u} per 1,000 kcal, ${fmt(r.dayAdv)} ${u} a day for this dog. ${r.adv.why}` : "";
+    const over = r.status==="high" || r.status==="watch", under = r.status==="low" || r.status==="marginal";
+    const sign = over ? note?.excess : under ? note?.deficit : "";        // what sustained excess or shortfall looks like
+    const noteTip = [r.status==="watch" ? advTip : "", sign].filter(Boolean).join(" ");
+    const noteIcon = noteTip ? " " + info(noteTip, 12, srcAttrs(r.status==="watch" ? r.adv.src : note.src)) : "";
     const st = r.status==="unknown" ? "enter the dog\u2019s weight"
-      : r.status==="high" ? "over max"
-      : r.status==="low" ? (isEPA ? "below target \u00b7 " : "LOW \u00b7 ") + ge + pctText(r.pct)
-      : r.status==="marginal" ? "marginal \u00b7 " + ge + pctText(r.pct)
-      : r.dayMin ? ge + pctText(r.pct) + " of need" : "no minimum";
+      : r.status==="high" ? "over max" + noteIcon
+      : r.status==="watch" ? "above advisory level" + noteIcon
+      : r.status==="low" ? (isEPA ? "below target \u00b7 " : "LOW \u00b7 ") + ge + pctText(r.pct) + noteIcon
+      : r.status==="marginal" ? "marginal \u00b7 " + ge + pctText(r.pct) + noteIcon
+      : r.dayMin ? ge + pctText(r.pct) + " of need" : "no minimum" + (PURPOSE[r.name] ? " " + info(PURPOSE[r.name], 12) : "");
     const miss = r.missing.length ? " " + warn(`${r.name} is not reported for: ${list(r.missing.map(m=>m.name))}.`, 13, ` data-jump="${r.j}"`) : "";
     // with no energy need to scale by, fall back to judging density against the per-1,000 kcal profile
-    const bar = r.status==="unknown" ? strip(r.per1000, r.min, r.max, `${fmt(r.per1000)} /1,000 kcal`) : strip(r.day, r.dayMin, r.dayMax, fmt(r.day));
-    return `<tr class="${cls}"><td><span class="nm">${r.name}${miss}</span><span class="src" style="display:block">${u}</span></td>
+    const bar = r.status==="unknown" ? strip(r.per1000, r.min, r.max, `${fmt(r.per1000)} /1,000 kcal`, fmt, r.adv?.max)
+                                     : strip(r.day, r.dayMin, r.dayMax, fmt(r.day), fmt, r.dayAdv);
+    return `<tr class="${cls}"><td><span class="nm">${r.name}${breeds}${miss}</span><span class="src" style="display:block">${u}</span></td>
       <td class="c-range">${bar}</td><td class="status">${st}</td></tr>`;
   }).join("");
   document.querySelector("#tbl-an tbody").innerHTML = rows;
@@ -179,9 +203,11 @@ export function initTooltips(){
   let current = null;
   function show(el){
     current = el; shownAt = performance.now();
-    const act = "jump" in el.dataset;                           // a tip that does something when clicked
-    tip.innerHTML = esc(el.dataset.tip) + (act ? icon("arrow",12) : ""); tip.hidden = false;
-    tip.classList.toggle("act", act);
+    const jump = "jump" in el.dataset, src = el.dataset.src;    // a tip that acts when clicked, or carries a source link
+    tip.innerHTML = esc(el.dataset.tip) + (jump ? icon("arrow",12) : "")
+      + (src ? ` <a href="${esc(src)}" target="_blank" rel="noopener" title="${esc(el.dataset.srcTitle||"")}">source ${icon("external",11)}</a>` : "");
+    tip.hidden = false;
+    tip.classList.toggle("act", jump || !!src);
     const r = el.getBoundingClientRect(), pad = 8, vw = window.innerWidth, vh = window.innerHeight;
     tip.style.maxWidth = Math.min(280, vw - 2*pad) + "px";
     const w = tip.offsetWidth, h = tip.offsetHeight;
@@ -204,6 +230,7 @@ export function initTooltips(){
   document.addEventListener("focusout", e=>{ if(target(e)) hide(); });
   document.addEventListener("click", e=>{
     if(inTip(e.target)){                                         // a tap on an actionable tip fires its action
+      if(e.target.closest("a")){ hide(); return; }               // a source link just opens
       const j = current?.dataset.jump; hide();
       if(j!=null) document.dispatchEvent(new CustomEvent("jump-to-missing", { detail:{ j:+j } }));
       return;

@@ -11,7 +11,7 @@
  * complete diet: its 21 g of protein is 156 g per 1,000 kcal, well over 45,
  * while the dog is short of both calories and protein.
  */
-import { NUTS, iKcal, iCa, iP } from "./data.js";
+import { NUTS, ADVISORY, iKcal, iCa, iP, iVitE, iEPA, iLA, iALA, iAA, iPUFA } from "./data.js";
 import { S, totals, totalGrams, weightKg, missing } from "./state.js";
 
 /** Resting energy requirement, kcal/day, for a body weight in kg. */
@@ -29,27 +29,37 @@ export const MARGINAL = 1.2;
  *   day      amount eaten per day
  *   mer      the dog's energy need, kcal/day
  *   mn / mx  AAFCO minimum / maximum per 1,000 kcal (null when there is none)
- * Returns { dayMin, dayMax, pct, status } where status is one of
- * "unknown" (no energy need to scale by), "high", "low", "marginal", "ok".
+ *   adv      advisory upper level per 1,000 kcal for a nutrient with no AAFCO maximum (see ADVISORY)
+ * Returns { dayMin, dayMax, dayAdv, pct, status } where status is one of
+ * "unknown" (no energy need to scale by), "high" (over the AAFCO maximum),
+ * "watch" (over the advisory level), "low", "marginal", "ok".
  */
-export function judge(day, mer, mn, mx){
-  if(!(mer > 0)) return { dayMin: null, dayMax: null, pct: NaN, status: "unknown" };
+export function judge(day, mer, mn, mx, adv = null){
+  if(!(mer > 0)) return { dayMin: null, dayMax: null, dayAdv: null, pct: NaN, status: "unknown" };
   const scale = mer / 1000;
   const dayMin = mn != null ? mn * scale : null;
   const dayMax = mx != null ? mx * scale : null;
+  const dayAdv = mx == null && adv != null ? adv * scale : null;   // an AAFCO maximum takes precedence
   const pct = dayMin ? day / dayMin : NaN;
   let status = "ok";
   if(dayMax != null && day > dayMax) status = "high";
+  else if(dayAdv != null && day > dayAdv) status = "watch";
   else if(dayMin != null && pct < 1) status = "low";
   else if(dayMin != null && pct < MARGINAL) status = "marginal";
-  return { dayMin, dayMax, pct, status };
+  return { dayMin, dayMax, dayAdv, pct, status };
 }
 
-/** Calcium : phosphorus by weight. NaN with neither, Infinity with calcium but no phosphorus. */
-export function caToP(ca, p){
-  if(p > 0) return ca / p;
-  return ca > 0 ? Infinity : NaN;
+/** A ratio of two amounts: NaN with neither, Infinity with a numerator but no denominator. */
+export function ratio(num, den){
+  if(den > 0) return num / den;
+  return num > 0 ? Infinity : NaN;
 }
+/** Calcium : phosphorus by weight. */
+export const caToP = ratio;
+/** AAFCO caps (linoleic + arachidonic) : (alpha-linolenic + EPA + DHA) at 30:1 for adult dogs. */
+export const N6N3_MAX = 30;
+/** AAFCO: at least 0.6 IU of vitamin E per gram of polyunsaturated fat. */
+export const E_PUFA_MIN = 0.6;
 
 /**
  * Everything the analysis panel shows, for the current diet (or a given one).
@@ -57,9 +67,12 @@ export function caToP(ca, p){
  *   rer, mer      the dog's resting / maintenance need, kcal/day
  *   ePct          kcal / mer (NaN when mer is 0)
  *   energy        "ok" | "low" | "high" | "unknown"
- *   caP           calcium : phosphorus ratio, see caToP
- *   rows          one per NUTS entry: { j, name, unit, min, max, day, per1000, dayMin, dayMax, pct, status, missing }
- *                 per1000 is the density of the diet as entered; min/max are AAFCO's per 1,000 kcal;
+ *   caP           calcium : phosphorus ratio, see ratio()
+ *   n6n3          (linoleic + arachidonic) : (alpha-linolenic + EPA + DHA), with status "ok" | "high" | "unknown"
+ *   ePufa         vitamin E IU : PUFA g, with status "ok" | "low" | "unknown"
+ *   each ratio carries `missing`: foods fed whose value for one of its inputs is unknown
+ *   rows          one per NUTS entry: { j, name, unit, min, max, adv, day, per1000, dayMin, dayMax, dayAdv, pct, status, missing }
+ *                 per1000 is the density of the diet as entered; min/max are AAFCO's per 1,000 kcal; adv the ADVISORY entry if any;
  *                 missing lists the foods fed whose value for this nutrient is unknown (day is then a lower bound).
  */
 export function analyze(state = S){
@@ -70,8 +83,15 @@ export function analyze(state = S){
   const rows = NUTS.map(([name, unit, mn, mx], j) => {
     const day = t[j];
     const per1000 = kcal > 0 ? day / kcal * 1000 : NaN;
-    const v = j === iKcal ? { dayMin: null, dayMax: null, pct: NaN, status: "energy" } : judge(day, mer, mn, mx);
-    return { j, name, unit, min: mn, max: mx, day, per1000, ...v, missing: miss[j] };
+    const adv = ADVISORY[name] ?? null;
+    const v = j === iKcal ? { dayMin: null, dayMax: null, dayAdv: null, pct: NaN, status: "energy" } : judge(day, mer, mn, mx, adv?.max);
+    return { j, name, unit, min: mn, max: mx, adv, day, per1000, ...v, missing: miss[j] };
   });
-  return { kcal, grams: totalGrams(state), rer, mer, ePct, energy, caP: caToP(t[iCa], t[iP]), rows };
+  const missingFor = idxs => { const seen = new Map(); idxs.forEach(i => miss[i].forEach(m => seen.set(m.name, m))); return [...seen.values()]; };
+  // a balance is only judged when every input is reported: an unknown counted as 0 would pass or fail it for the wrong reason
+  const n6n3v = ratio(t[iLA] + t[iAA], t[iALA] + t[iEPA]), n6n3m = missingFor([iLA, iAA, iALA, iEPA]);
+  const n6n3 = { value: n6n3v, status: n6n3m.length || Number.isNaN(n6n3v) ? "unknown" : n6n3v > N6N3_MAX ? "high" : "ok", missing: n6n3m };
+  const ePufav = ratio(t[iVitE], t[iPUFA]), ePufam = missingFor([iVitE, iPUFA]);
+  const ePufa = { value: ePufav, status: ePufam.length || Number.isNaN(ePufav) ? "unknown" : ePufav < E_PUFA_MIN ? "low" : "ok", missing: ePufam };
+  return { kcal, grams: totalGrams(state), rer, mer, ePct, energy, caP: caToP(t[iCa], t[iP]), caPMissing: missingFor([iCa, iP]), n6n3, ePufa, rows };
 }

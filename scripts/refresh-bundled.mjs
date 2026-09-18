@@ -9,10 +9,13 @@
  * refresh of the existing list fits inside DEMO_KEY's hourly allowance).
  * Set SEARCH=1 to look every food up again. Entries marked `manual` are
  * copied through untouched. Nutrients a record does not report stay null.
+ * A rate limit (429) part-way through keeps the previous values for the foods
+ * it could not fetch, so the script can simply be re-run later.
  */
 import { writeFileSync, existsSync } from "node:fs";
 import { LIST } from "./bundled-list.js";
 import { mapNutrients } from "../src/fdc.js";
+import { NUTS } from "../src/data.js";
 import { formatBundled } from "./bundled-format.mjs";
 
 const KEY = process.env.FDC_KEY;
@@ -55,8 +58,10 @@ for(const item of todo){
 }
 for(let i=0;i<found.length;i+=20){
   const chunk = found.slice(i,i+20);
-  const foods = await get(`/foods`, { method:"POST", headers:{"content-type":"application/json"},
-    body: JSON.stringify({ fdcIds: chunk.map(x=>x.fdcId), format:"full" }) });
+  let foods;
+  try{ foods = await get(`/foods`, { method:"POST", headers:{"content-type":"application/json"},
+    body: JSON.stringify({ fdcIds: chunk.map(x=>x.fdcId), format:"full" }) }); }
+  catch(e){ console.warn(`details failed for ${chunk.length} foods (${e.message}); keeping their previous values`); continue; }
   for(const food of foods){
     const it = chunk.find(x=>x.fdcId===food.fdcId);
     if(it) it.per100 = mapNutrients(food);
@@ -64,7 +69,7 @@ for(let i=0;i<found.length;i+=20){
 }
 
 const out = LIST.map(item=>{
-  if(item.manual) return { name:item.name, src:item.src, per100:item.per100 };
+  if(item.manual) return { name:item.name, src:item.src, per100: NUTS.map((_,j)=> item.per100[j] ?? 0) }; // a shorter manual list is padded with zeros
   const fresh = found.find(x=>x.name===item.name && x.per100);
   if(fresh) return { name:item.name, src:`USDA ${fresh.fdcId} (${fresh.dataType})`, per100: fresh.per100.map(v=> v==null ? null : +(+v).toFixed(3)) };
   if(previous[item.name]) return previous[item.name];

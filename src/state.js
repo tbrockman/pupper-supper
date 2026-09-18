@@ -1,4 +1,5 @@
-import { EXAMPLE, NUTS, UNITS, PERIODS, WEIGHT_UNITS, DEFAULT_TITLE, newId } from "./data.js";
+import { EXAMPLE, NUTS, UNITS, PERIODS, WEIGHT_UNITS, DEFAULT_TITLE, newId, usdaId } from "./data.js";
+import { BUNDLED } from "./bundled.js";
 import { evalExpr } from "./expr.js";
 
 /* ---------- localStorage wrapper ---------- */
@@ -10,7 +11,7 @@ export const store = {
 /* ---------- current recipe (live binding: importers see reassignment) ---------- */
 export let S = null;
 export function setState(next){ S = next; }
-export function loadLocal(){ return sanitize(store.get("lady.state")) || structuredClone(EXAMPLE); }
+export function loadLocal(){ const st = sanitize(store.get("lady.state")); if(st) backfill(st); return st || structuredClone(EXAMPLE); }
 export function saveLocal(){ store.set("lady.state", S); }
 
 const num = (v,d)=> Number.isFinite(+v) && v!=="" && v!==null ? +v : d;
@@ -61,6 +62,25 @@ export function sanitize(raw){
       per100: NUTS.map((_,j)=> nut(Array.isArray(x.per100)? x.per100[j] : null)),
     })),
   };
+}
+
+/**
+ * Fill in nutrients a food does not report from the built-in table, when the
+ * food is recognisably the same item: same USDA id in its source note, or the
+ * same name. Only blanks are filled; nothing typed is ever overwritten. Diets
+ * saved before a nutrient was added to the table come back complete this way.
+ * Returns how many values were filled.
+ */
+export function backfill(state){
+  let n = 0;
+  for(const it of state.foods){
+    if(!it.per100.some(v=>v==null)) continue;
+    const id = usdaId(it.src), name = it.name.trim().toLowerCase();
+    const b = BUNDLED.find(b=> (id && usdaId(b.src)===id) || b.name.toLowerCase()===name);
+    if(!b) continue;
+    it.per100 = it.per100.map((v,j)=>{ if(v==null && b.per100[j]!=null){ n++; return b.per100[j]; } return v; });
+  }
+  return n;
 }
 
 /* ---------- ration maths ---------- */

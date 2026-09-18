@@ -163,15 +163,16 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 #tbl-in td.unit{font-size:.74rem; padding-left:0; white-space:nowrap}
 #tbl-in td.unit select{font-size:.78rem; padding:.15rem .3rem; min-height:calc(1.45 * .86rem + .4rem + 2px)} /* same height as the weight box */
 /* results: a row outside its range is tinted, not just its text */
-#tbl-vitals tr.low td, #tbl-vitals tr.high td{background:#F8E9E6}
+#tbl-vitals tr.low td, #tbl-vitals tr.high td{background:#F2DAD5} /* dark enough for the range band to stand out */
 #tbl-vitals tr.low td:first-child, #tbl-vitals tr.high td:first-child{color:var(--brick)}
-#tbl-vitals tr.marg td{background:#FBF3E4}
+#tbl-vitals tr.marg td{background:#F7E9CF}
 #tbl-vitals td.status{color:var(--ink-soft)}
 #tbl-vitals tr.low td.status{color:var(--brick)} #tbl-vitals tr.okrow td.status{color:var(--moss)}
 .info{display:inline-flex; align-items:center; color:var(--ink-soft); cursor:help; vertical-align:middle; border-radius:50%}
 .info:hover, .info:focus{color:var(--moss); outline:none}
 .info:focus-visible{outline:2px solid var(--moss); outline-offset:2px}
 .info.warn{color:var(--amber)} .info.warn:hover, .info.warn:focus{color:var(--amber); opacity:.8}
+.info.breed{opacity:.55} .info.breed:hover, .info.breed:focus{opacity:1} /* a breed note: quieter than a warning */
 /* count of nutrients a food does not report, pinned to its editor button */
 td.actions button[data-f="edit"]{position:relative}
 .badge{position:absolute; top:-.15rem; right:-.2rem; min-width:.85rem; height:.85rem; padding:0 .15rem; border-radius:.45rem;
@@ -187,6 +188,7 @@ td.actions button[data-f="edit"]{position:relative}
 .tip.act .ico{display:inline-block; vertical-align:-2px; margin-left:.3rem; opacity:.75}
 .tip.act::after{content:""; position:absolute; left:0; right:0; top:100%; height:12px}
 .tip.act:hover{filter:brightness(1.3)}
+.tip a{color:inherit; white-space:nowrap} .tip a .ico{vertical-align:-1px}
 .nutgrid label.flash{animation:rowflash 1.6s ease-out}
 .vitals{display:flex; gap:2.2rem; flex-wrap:wrap; padding:.9rem 0 .3rem}
 .vital .v{font-size:1.5rem; letter-spacing:-.01em}
@@ -200,34 +202,26 @@ td.actions button[data-f="edit"]{position:relative}
 .strip .band{position:absolute; top:0; bottom:0; background:#DFE7DC; border-radius:5px}
 .strip .dot{position:absolute; top:50%; width:9px; height:9px; border-radius:50%;
   left:clamp(4.5px, var(--x), calc(100% - 4.5px)); transform:translate(-50%,-50%); background:var(--mark)}
-.strip .minm{position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--ink-soft)}
 /* the value above its dot, the strip, and its minimum and maximum beneath */
+/* no side padding: the strip starts under the "Range" header, and end labels spill past it into the neighbours' padding */
 .range{display:flex; flex-direction:column; gap:2px; padding:1px 0}
+.tk.adv{text-decoration:underline dotted; text-underline-offset:2px} /* an advisory level, not an AAFCO maximum */
 .vlabel, .ticks{position:relative; height:calc(.68rem * 1.2); font-size:.68rem; line-height:1.2; color:var(--ink-soft)}
 .vlabel{color:var(--ink)}
 .vl, .tk{position:absolute; top:0; left:var(--x); white-space:nowrap}
 .vl, .tk{transform:translateX(-50%)} /* left is set in px by placeLabels() */
 tr.low .vl, tr.high .vl{color:var(--brick)} tr.marg .vl{color:var(--amber)}
 /* nutrient rows out of range are tinted like the quick checks */
-#tbl-an tr.low td, #tbl-an tr.high td{background:#F8E9E6}
-#tbl-an tr.marg td{background:#FBF3E4}
+#tbl-an tr.low td, #tbl-an tr.high td{background:#F2DAD5}
+#tbl-an tr.marg td{background:#F7E9CF}
 #tbl-an .nm{white-space:nowrap}
 tr.low  .dot{background:var(--brick)} tr.low  td:first-child{color:var(--brick)}
 tr.high .dot{background:var(--brick)} tr.high td:first-child{color:var(--brick)}
 tr.marg .dot{background:var(--amber)}
-td.status{font-size:.72rem; white-space:nowrap}
+td.status{font-size:.72rem; white-space:nowrap} td.status .info{margin-left:.1rem}
 tr.low td.status, tr.high td.status{color:var(--brick);}
 tr.marg td.status{color:var(--amber)}
 tr.okrow td.status{color:var(--moss)}
-
-/* ---------- disclaimer ---------- */
-footer#disclaimer{display:flex; gap:.6rem; align-items:flex-start; margin:1.2rem 2rem 0; padding:.7rem .9rem; max-width:70ch;
-  font-size:.74rem; color:var(--ink-soft); border:1px solid var(--rule); border-radius:4px}
-footer#disclaimer > .ico{color:var(--amber); flex:none; margin-top:.15rem}
-footer#disclaimer p{margin:0; line-height:1.45}
-footer#disclaimer a{color:var(--moss); display:inline-flex; align-items:center; gap:.2rem}
-footer#disclaimer.flash{animation:rowflash 1.6s ease-out}
-@media (max-width: 640px){ footer#disclaimer{margin:1rem .9rem 0} }
 
 /* ---------- toast + share ---------- */
 .toast{position:fixed; bottom:1rem; left:50%; transform:translateX(-50%);
@@ -248,6 +242,8 @@ footer#disclaimer.flash{animation:rowflash 1.6s ease-out}
 .menupop button:focus, .menupop a:focus{background:var(--ink); color:var(--bone); outline:none}
 .menupop button:focus .ico, .menupop a:focus .ico{color:var(--bone)}
 .menupop .sep{height:1px; background:var(--rule); margin:.3rem .4rem}
+.menupop .fine{display:flex; gap:.5rem; align-items:flex-start; padding:.4rem .7rem .5rem; font-size:.7rem; line-height:1.35; color:var(--ink-soft); max-width:17rem}
+.menupop .fine .ico{color:var(--amber); flex:none; margin-top:.1rem}
 .sharepop{position:absolute; right:0; top:2.3rem; z-index:35; width:min(26rem, 92vw);
   background:#fff; border:1px solid var(--rule); border-radius:4px; padding:.7rem .8rem;font-size:.8rem; color:var(--ink-soft)}
 .sharepop[hidden]{display:none}

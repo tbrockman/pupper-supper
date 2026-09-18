@@ -7,9 +7,116 @@ export const NUTS = [
  ["Selenium","µg",80,500],["Iodine","µg",250,2750],["Vitamin A","IU",1250,62500],
  ["Vitamin D","IU",125,750],["Vitamin E","IU",12.5,null],["Thiamin B1","mg",0.56,null],
  ["Riboflavin B2","mg",1.3,null],["Vitamin B6","mg",0.375,null],["Vitamin B12","µg",7,null],
- ["Folate","µg",54,null],["Choline","mg",340,null],["EPA+DHA","g",0.3,null] // 0.3 = common target, not AAFCO
+ ["Folate","µg",54,null],["Choline","mg",340,null],["EPA+DHA","g",0.3,null], // 0.3 = common target, not AAFCO
+ // appended later (saved and shared diets are positional, so new nutrients go on the end):
+ ["Linoleic acid","g",2.8,null],["Alpha-linolenic acid","g",null,null],["Arachidonic acid","g",null,null],
+ ["Polyunsaturated fat","g",null,null],["Niacin B3","mg",3.4,null],["Pantothenic acid B5","mg",3,null]
 ];
 export const iKcal=0, iCa=3, iP=4;
+const at = name => NUTS.findIndex(n => n[0]===name);
+export const iVitE=at("Vitamin E"), iEPA=at("EPA+DHA"), iLA=at("Linoleic acid"), iALA=at("Alpha-linolenic acid"),
+  iAA=at("Arachidonic acid"), iPUFA=at("Polyunsaturated fat");
+/** Row order for the analysis table: fats together, B vitamins together, whatever the storage order. */
+export const DISPLAY = ["Energy","Protein","Fat","Linoleic acid","Alpha-linolenic acid","Arachidonic acid","EPA+DHA","Polyunsaturated fat",
+  "Calcium","Phosphorus","Potassium","Sodium","Magnesium","Iron","Zinc","Copper","Manganese","Selenium","Iodine",
+  "Vitamin A","Vitamin D","Vitamin E","Thiamin B1","Riboflavin B2","Niacin B3","Pantothenic acid B5","Vitamin B6","Vitamin B12","Folate","Choline"].map(at);
+if(DISPLAY.length!==NUTS.length || DISPLAY.includes(-1)) throw new Error("DISPLAY does not match NUTS");
+
+/* ---------- advisory upper levels for nutrients AAFCO leaves open-ended ---------- */
+/**
+ * AAFCO's 2016 profile keeps a maximum only where excess has documented harm
+ * (Ca, P, I, Se, vitamins A and D). The 2014 rationale (SOURCES.aafco14) says
+ * the absence of a maximum "should not be interpreted to mean that nutrients
+ * without a specific maximum content are safe at any level". These are the
+ * published upper figures that do exist, per 1,000 kcal ME, converting dry-
+ * matter values at AAFCO's 4,000 kcal ME/kg DM convention. A diet above one
+ * is marked "above advisory level", not "over max". Nutrients not listed
+ * (vitamin E, potassium, the B vitamins, choline, protein, fat) have no
+ * published upper figure for dogs at all.
+ */
+export const SOURCES = {
+  fediaf:  { title: "FEDIAF Nutritional Guidelines 2024, Table III-3a, footnote c and section 3.3.1",
+             url: "https://europeanpetfood.org/wp-content/uploads/2024/09/FEDIAF-Nutritional-Guidelines_2024.pdf" },
+  aafco14: { title: "AAFCO 2014 Pet Food Report, Appendix A: rationale for the 2016 dog food nutrient profiles",
+             url: "https://www.aafco.org/wp-content/uploads/2023/01/Pet_Food_Report_Annual_2014-Appendix_A-Revised_AAFCO_Nutrient_Profiles-Final_092214.pdf" },
+  aafcoCu: { title: "AAFCO response (2022) to Center et al., JAVMA 258(4):357, on copper in dog food",
+             url: "https://www.aafco.org/wp-content/uploads/2023/03/Response-from-AAFCO-to-JAVMA-Viewpoint-Article-of-February-15-2021.pdf" },
+  merckNut:  { title: "Merck Veterinary Manual: Nutritional Requirements of Small Animals",
+               url: "https://www.merckvetmanual.com/management-and-nutrition/nutrition-small-animals/nutritional-requirements-of-small-animals" },
+  merckHep:  { title: "Merck Veterinary Manual: Canine Chronic Hepatitis",
+               url: "https://www.merckvetmanual.com/digestive-system/hepatic-diseases-of-small-animals/canine-chronic-hepatitis" },
+  merckSkin: { title: "Merck Veterinary Manual: Cutaneous Manifestations of Multisystemic and Metabolic Defects",
+               url: "https://www.merckvetmanual.com/integumentary-system/congenital-and-inherited-anomalies-of-the-integumentary-system/cutaneous-manifestations-of-multisystemic-and-metabolic-defects-in-animals" },
+  merckPanc: { title: "Merck Veterinary Manual: Pancreatitis in Dogs and Cats",
+               url: "https://www.merckvetmanual.com/digestive-system/the-exocrine-pancreas/pancreatitis-in-dogs-and-cats" },
+  merckSe:   { title: "Merck Veterinary Manual: Selenium Toxicosis in Animals",
+               url: "https://www.merckvetmanual.com/toxicology/selenium-toxicosis/selenium-toxicosis-in-animals" },
+  merckFOD:  { title: "Merck Veterinary Manual: Fibrous Osteodystrophy in Animals",
+               url: "https://www.merckvetmanual.com/musculoskeletal-system/dystrophies-associated-with-calcium-phosphorus-and-vitamin-d/fibrous-osteodystrophy-in-animals" },
+};
+
+/**
+ * What sustained excess or shortfall looks like, and which breeds a nutrient
+ * matters more for. Shown in tooltips when a row is out of range (`excess`,
+ * `deficit`) or always, beside the name (`breeds`). Every entry is paraphrased
+ * from the linked source; these are signs vets associate with the condition,
+ * not a diagnosis.
+ */
+export const NOTES = {
+  "Vitamin A": { excess: "Sustained excess is associated with skeletal malformation, spontaneous fractures and internal haemorrhage; liver is the usual source.",
+                 deficit: "Shortfall shows as night blindness, dry eyes, skin lesions and weight loss.", src: ["merckNut"] },
+  "Vitamin D": { excess: "Excess raises blood calcium and phosphate, with irreversible soft-tissue calcification; excess thirst and urination and vomiting are early signs.",
+                 deficit: "Shortfall causes rickets in the young and soft or brittle bone in adults.", src: ["merckNut"] },
+  "Vitamin E": { deficit: "Shortfall shows as muscle weakness and degeneration, retinal degeneration and listlessness. Needs rise with the diet\u2019s polyunsaturated fat, e.g. fish oil.", src: ["merckNut"] },
+  "Thiamin B1": { deficit: "Shortfall shows as unsteady gait and heart enlargement. Cooking can destroy up to 90% of thiamin, so cooked diets need a margin.", src: ["merckNut", "aafco14"] },
+  "Calcium":  { excess: "In adults, excess mostly reduces zinc and copper absorption. In growing large-breed dogs it worsens osteochondrosis and slows skeletal remodelling.",
+                deficit: "Meat-heavy diets short of calcium cause nutritional secondary hyperparathyroidism: bone demineralisation, pain, reluctance to walk, shifting lameness and fractures.",
+                breeds: "Large-breed puppies (over about 32 kg as adults) are the group most harmed by too much calcium, and AAFCO caps their food at 4.5 g per 1,000 kcal rather than the adult 6.25 g. This page uses the adult profile.",
+                src: ["merckNut", "merckFOD", "aafco14"] },
+  "Phosphorus": { excess: "Excess phosphorus, especially with calcium below phosphorus, pulls calcium from bone (nutritional secondary hyperparathyroidism): pain, lameness, fractures.", src: ["merckFOD", "fediaf"] },
+  "Iodine":   { excess: "A diet at about twice the AAFCO maximum disturbed thyroid function in the studies AAFCO cites.", src: ["aafco14"] },
+  "Selenium": { excess: "Chronic selenium poisoning from food in dogs shows as loss of appetite, wasting, anaemia, a coarse loose coat and fluid in the abdomen.", src: ["merckSe"] },
+  "Copper":   { excess: "Excess copper accumulates in the liver and is silent until damage is done: loss of appetite, lethargy, vomiting, weight loss, jaundice and later ascites. Liver is the usual dietary source.",
+                deficit: "Shortfall shows as a microcytic, hypochromic anaemia.",
+                breeds: "Bedlington Terriers, Labrador Retrievers, Doberman Pinschers, Dalmatians, West Highland White Terriers, Welsh Corgis and Keeshonds are predisposed to copper-associated liver disease (inherited defects in copper excretion), though no breed is free of it. For these breeds keep copper near the minimum and discuss it with your vet.",
+                src: ["merckHep", "merckNut"] },
+  "Zinc":     { excess: "High zinc reduces copper absorption.",
+                deficit: "Shortfall shows as crusting, hair loss, keratitis, vomiting and poor growth.",
+                breeds: "Alaskan Malamutes, Siberian Huskies and German Shorthaired Pointers can have a familial zinc-responsive dermatosis (crusting at the lips, eyes and feet) from poor zinc absorption; they may need more zinc than the profile gives, under a vet\u2019s guidance.",
+                src: ["merckSkin", "merckNut", "fediaf"] },
+  "Iron":     { deficit: "Shortfall shows as a microcytic, hypochromic anaemia.", src: ["merckNut"] },
+  "Magnesium": { deficit: "Shortfall shows as listlessness, lethargy and muscle weakness.", src: ["merckNut"] },
+  "Sodium":   { excess: "At 2% of dry matter, sodium produced a negative potassium balance in dogs. Dogs with heart or kidney disease are usually kept lower still.", src: ["fediaf"] },
+  "Fat":      { breeds: "Miniature Schnauzers are dramatically over-represented among dogs with pancreatitis and often carry an inherited high blood-fat condition; Yorkshire Terriers, Cocker Spaniels, Dachshunds and Poodles are also over-represented. Severe hypertriglyceridaemia is a risk factor, and diets for affected dogs are kept under 20 g fat per 1,000 kcal.",
+                src: ["merckPanc"] },
+  "Linoleic acid": { deficit: "Shortfall shows as a dry, scaly, lustreless coat.", src: ["merckNut"] },
+};
+/** Why a nutrient with no AAFCO minimum is in the table at all. */
+export const PURPOSE = {
+  "Alpha-linolenic acid": "The plant omega-3. AAFCO sets no adult minimum for it, but it counts towards the omega-6 : omega-3 balance in the quick checks, which must stay at or under 30:1.",
+  "Arachidonic acid": "An omega-6 from animal fat. No adult minimum, but it is added to linoleic acid on the omega-6 side of the omega-6 : omega-3 balance.",
+  "Polyunsaturated fat": "Total polyunsaturated fat. No minimum of its own; the vitamin E : PUFA quick check needs it, since vitamin E is used up protecting these fats.",
+};
+export const ADVISORY = {
+  Copper:    { max: 7,    basis: "the EU legal maximum for complete dog food, 28 mg/kg dry matter",
+               why: "AAFCO dropped its copper maximum in 2016 for lack of data on a safe upper limit and, after a 2021 JAVMA article linked rising copper-associated liver disease to food, declined in 2022 to restore one for the same reason. Liver is the usual source of excess; commercial foods average about 4.4 mg per 1,000 kcal.",
+               src: ["fediaf", "aafcoCu"] },
+  Zinc:      { max: 56.8, basis: "the EU legal maximum, 227 mg/kg dry matter",
+               why: "No safe upper limit has been established for dogs; AAFCO's former maximum was taken from pig tolerance data and dropped in 2016. High zinc also reduces copper absorption.",
+               src: ["fediaf", "aafco14"] },
+  Iron:      { max: 170,  basis: "the EU legal maximum, 682 mg/kg dry matter",
+               why: "AAFCO: iron is toxic at some amount above the recommended quantities, but the exact amount is unknown for dogs. Its former maximum was taken from pig tolerance data and dropped in 2016.",
+               src: ["fediaf", "aafco14"] },
+  Manganese: { max: 42.5, basis: "the EU legal maximum, 170 mg/kg dry matter",
+               why: "No safe upper limit has been established for dogs.",
+               src: ["fediaf"] },
+  Magnesium: { max: 4250, basis: "the one figure the NRC (2006) gives: a safe upper limit somewhere above 1.7% of dry matter",
+               why: "AAFCO dropped its magnesium maximum in 2016 for lack of dog-specific data.",
+               src: ["aafco14"] },
+  Sodium:    { max: 3750, basis: "the highest level shown safe for healthy dogs, 1.5% of dry matter",
+               why: "Higher levels may be safe but have not been studied. AAFCO sets no maximum because dogs stop eating over-salted food before harm shows. Dogs with heart or kidney disease need less.",
+               src: ["fediaf", "aafco14"] },
+};
 
 /** Source for the profile the analysis compares against. */
 export const AAFCO_URL = "https://www.aafco.org/wp-content/uploads/2023/01/Model_Bills_and_Regulations_Agenda_Midyear_2015_Final_Attachment_A.__Proposed_revisions_to_AAFCO_Nutrient_Profiles_PFC_Final_070214.pdf";
@@ -23,13 +130,32 @@ export const PERIODS = { day:1, week:7, month:30.4375 };
 
 export const DEFAULT_TITLE = "pupper supper";
 
+/** FoodData Central id recorded in a food's source note ("USDA 171077 (SR Legacy)", "USDA FDC 171077"), or null. */
+export const usdaId = src => +(/USDA (?:FDC )?(\d+)/.exec(src||"")||[])[1] || null;
+
 export function newId(){ return Math.random().toString(36).slice(2); }
+
+/* ---------- built-in ingredients, for the example diet ---------- */
+import { BUNDLED } from "./bundled.js";
+/** a built-in by name; a missing one (e.g. mid-refresh) degrades to unknown values rather than breaking the page */
+const bundled = name => BUNDLED.find(b=>b.name===name) ?? (console.warn(`no built-in named "${name}"`), { name, src:"not in the built-in table", per100: NUTS.map(()=>null) });
+/** fill values the source does not report from `est` ({ nutrient name: value }), noting it in the source text */
+const withEst = (per100, src, est={}) => {
+  const filled = [];
+  per100 = per100.map((v,j)=>{ const e = est[NUTS[j][0]]; if(v==null && e!=null){ filled.push(NUTS[j][0].toLowerCase()); return e; } return v; });
+  return [filled.length ? `${src} · ~${filled.join(", ")} estimated` : src, per100];
+};
+/** [source note with an extra remark, per-100 g values] of a built-in, in the order f() takes them */
+const fromBundle = (name, note, est) => withEst(bundled(name).per100.slice(), `${bundled(name).src} · ${note}`, est);
+/** the mean of several built-ins (an unreported value in any of them makes the mean unreported) */
+const meanOf = names => names.map(bundled).reduce((acc,b)=> acc.map((v,j)=> v==null || b.per100[j]==null ? null : v + b.per100[j]/names.length), NUTS.map(()=>0))
+  .map(v=> v==null ? null : Math.round(v*1000)/1000);
 
 /**
  * Build a food item.
  *  amount  = a number or small arithmetic expression, e.g. "400*2/10"
  *  unit    = key of UNITS; per = key of PERIODS
- *  per100  = 24 values in NUTS order, per 100 g; null = not known
+ *  per100  = NUTS.length values in NUTS order, per 100 g; null = not known
  */
 export function f(name, amount, unit, per, src, per100){
   return {id:newId(), name, amount:String(amount), unit, per, src, per100};
@@ -42,40 +168,36 @@ export function blankFood(){
 
 export const EMPTY = { title: DEFAULT_TITLE, weight: 20, weightUnit: "kg", activity: 1.6, foods: [] };
 
-/* ---------- example recipe: a 22 kg active dog on a mixed home-cooked / kibble diet ---------- */
+/* ---------- example recipe: a 23 kg active dog on a mixed home-cooked / kibble diet ---------- */
+/* Home-cooked items are cooked as a 10-cup batch of which 2 cups are fed a day (hence *2/10).
+   USDA-sourced items take their values from the built-in table (src/bundled.js), so refreshing the bundle
+   refreshes them; what USDA never reports (iodine, and a few others) is estimated and said so in the source
+   note. The branded foods and treats are hand-typed estimates (marked ~). */
+const MIXED_VEG = ["Carrots, raw", "Peas, green, cooked", "Green beans, raw", "Corn, sweet, raw"].filter(n=> BUNDLED.some(b=>b.name===n));
 export const EXAMPLE = {
  title: DEFAULT_TITLE, weight:23, weightUnit:"kg", activity:2.4,
  foods:[
- f("Canned pumpkin","400*2/10","g","day","USDA 168534 · 400 g per batch",
-   [34,1.1,.28,26,35,206,5,23,1.39,.17,.11,.15,.2,1,2620,0,1.6,.03,.05,.06,0,12,8,0]),
- f("Sweet potato, peeled","860*2/10","g","day","USDA 168482 · 860 g per batch",
-   [86,1.6,.1,30,47,337,55,25,.6,.3,.15,.26,.6,1,2360,0,.4,.08,.06,.21,0,11,12,0]),
- f("Chicken liver","133*2/10","g","day","USDA 171060 raw · 133 g per batch",
-   [119,16.9,4.8,8,297,230,71,19,9,2.7,.49,.26,55,10,11000,20,1,.3,1.78,.85,16.6,588,194,.1]),
- f("Chicken hearts","133*2/10","g","day","~USDA raw · 133 g per batch",
-   [153,15.6,9.3,12,177,176,74,15,5.9,6.6,.5,.1,43,4,30,0,1,.15,.73,.36,7.3,72,194,.03]),
- f("Extra-lean ground beef (95%)","454*2/10","g","day","USDA 171791 raw · 454 g per batch",
-   [137,21.4,5,12,175,330,66,20,2.4,5.1,.08,.01,17,3,0,4,.3,.05,.16,.36,2.2,6,65,0]),
- f("Large eggs","6*50*2/10","g","day","USDA 171287 · 6 eggs × 50 g per batch",
-   [143,12.6,9.5,56,198,138,142,12,1.75,1.3,.07,.03,31,50,540,82,1.6,.04,.46,.17,.89,47,294,.04]),
- f("Jasmine rice, dry","139*2/10","g","day","USDA 169756 · ¾ cup dry per batch",
-   [365,7.1,.7,28,115,115,5,25,.8,1.1,.22,1.1,15,1,0,0,.2,.07,.05,.16,0,8,6,0]),
- f("Mixed veg: carrot, peas, corn, green beans","500*2/10","g","day","~USDA average of the four · 500 g per batch",
-   [55,2.5,.4,25,55,220,35,18,.8,.4,.07,.2,.6,1,1500,0,.5,.08,.06,.1,0,25,15,0]),
- f("Green beans","250*2/10","g","day","USDA 169961 · 250 g per batch",
-   [33,1.8,.2,37,38,211,3,25,1,.24,.07,.21,.2,.5,120,0,.6,.08,.1,.14,0,33,15,0]),
+ f("Canned pumpkin","400*2/10","g","day",...fromBundle("Pumpkin, canned","400 g per batch",{Iodine:1})),
+ f("Sweet potato, peeled","860*2/10","g","day",...fromBundle("Sweet potato, raw","860 g per batch",{Iodine:1})),
+ f("Chicken liver","133*2/10","g","day",...fromBundle("Chicken liver, raw","133 g per batch",{Iodine:10})),
+ f("Chicken hearts","133*2/10","g","day",...fromBundle("Chicken heart, raw","133 g per batch",{Iodine:4,"Vitamin D":0,"Vitamin E":1,Choline:194})),
+ f("Extra-lean ground beef (95%)","454*2/10","g","day",...fromBundle("Beef, ground, 95% lean, raw","454 g per batch",{Iodine:3})),
+ f("Large eggs","6*50*2/10","g","day",...fromBundle("Egg, whole, raw","6 eggs × 50 g per batch",{Iodine:50})),
+ f("Jasmine rice, dry","139*2/10","g","day",...fromBundle("Rice, white, dry","¾ cup dry per batch",{Iodine:1})),
+ f(`Mixed veg: ${MIXED_VEG.map(n=>n.split(",")[0].toLowerCase()).join(", ")}`,"500*2/10","g","day",...withEst(meanOf(MIXED_VEG), `~mean of ${MIXED_VEG.length} built-ins · 500 g per batch`, {Iodine:1})),
+ f("Green beans","250*2/10","g","day",...fromBundle("Green beans, raw","250 g per batch",{Iodine:.5})),
  f("Calcium carbonate powder","1","g","day","40% elemental calcium",
-   [0,0,0,40000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),
+   [0,0,0,40000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),
  f("Carna4 Chicken kibble","2*116","g","day","Carna4 guaranteed analysis · 2 cups × 116 g · 500 kcal/cup",
-   [430,29,15,1300,1000,800,330,130,12,19,1.4,2.6,80,220,1600,110,34,.70,.61,.76,22,100,190,1.08]),
+   [430,29,15,1300,1000,800,330,130,12,19,1.4,2.6,80,220,1600,110,34,.70,.61,.76,22,100,190,1.08,2.5,.3,.05,3,8,2]),
  f("Kirkland wet pâté","374","g","week","~complete food at AAFCO minimums · one 374 g can",
-   [110,9,6,250,200,165,60,17,1.1,2.2,.2,.14,9,28,138,14,1.4,.06,.14,.04,.8,6,37,0]),
+   [110,9,6,250,200,165,60,17,1.1,2.2,.2,.14,9,28,138,14,1.4,.06,.14,.04,.8,6,37,0,.6,.08,.03,.8,1.5,.5]),
  f("Cesar wet tray","100","g","week","~complete food at AAFCO minimums · one 100 g tray",
-   [90,8,4,200,160,135,50,14,.9,1.8,.16,.11,7,23,113,11,1.1,.05,.12,.03,.6,5,31,0]),
+   [90,8,4,200,160,135,50,14,.9,1.8,.16,.11,7,23,113,11,1.1,.05,.12,.03,.6,5,31,0,.5,.06,.02,.7,1.2,.4]),
  f("Beef chew stick","2*20","g","week","~estimate · 2 sticks × 20 g",
-   [300,65,4,50,150,100,200,10,2,3,.1,.02,20,5,0,0,.2,.02,.1,.1,1,5,30,0]),
+   [300,65,4,50,150,100,200,10,2,3,.1,.02,20,5,0,0,.2,.02,.1,.1,1,5,30,0,.3,.05,.05,.4,5,.6]),
  f("Duck stick","2*8","g","week","~estimate · 2 sticks × 8 g",
-   [330,55,10,30,300,300,300,20,4,3,.2,.05,20,5,100,10,.3,.1,.3,.4,1,10,80,0]),
+   [330,55,10,30,300,300,300,20,4,3,.2,.05,20,5,100,10,.3,.1,.3,.4,1,10,80,0,1.5,.1,.1,2,6,1.5]),
  f("Freeze-dried beef liver bites","35","g","week","~freeze-dried beef liver · 35 × 1 g bites",
-   [350,70,12,18,1300,1100,240,63,17,14,34,1.1,140,30,58000,170,2.5,.7,9.7,3.7,200,1000,1150,0]),
+   [350,70,12,18,1300,1100,240,63,17,14,34,1.1,140,30,58000,170,2.5,.7,9.7,3.7,200,1000,1150,0,1,.05,.9,2,39,21]),
 ]};

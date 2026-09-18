@@ -52,7 +52,12 @@ FDC_KEY=... node scripts/refresh-bundled.mjs   # refresh built-in ingredients fr
 ```
 
 To add a built-in ingredient, append its exact FoodData Central description to
-`scripts/bundled-list.js` and run the refresh script.
+`scripts/bundled-list.js` and run the refresh script. It only searches for foods
+whose id it does not already have, so a refresh of the existing list is three
+requests and fits inside the demo key; if USDA rate-limits it part-way, the
+foods it could not fetch keep their previous values and you can re-run later.
+The example diet takes its USDA-sourced values from the bundle by name, so a
+refresh updates it too.
 
 ## How the analysis works
 
@@ -65,6 +70,38 @@ an amount per day, and that is what the day's intake is judged against. The
 diet's nutrient density per 1,000 kcal is shown alongside for reference: it
 says whether the *food* is balanced, while the per-day columns say whether the
 *dog* is getting enough.
+
+The nutrient table (`NUTS`) covers the AAFCO adult profile except chloride,
+which USDA does not report, and the amino acids. New nutrients are appended
+to the end of the table because saved and shared diets store values by
+position; `DISPLAY` gives the order the page shows them in. Besides the
+nutrient minimums the quick checks apply AAFCO's three balances: calcium to
+phosphorus (1:1 to 2:1), omega-6 to omega-3 (at most 30:1) and vitamin E to
+polyunsaturated fat (at least 0.6 IU/g).
+
+When a row is out of range, its status carries a note (`NOTES` in
+`src/data.js`) of what sustained excess or shortfall looks like, and a few
+nutrients carry a breed note beside their name (copper and the copper-storage
+breeds, zinc and the Arctic breeds, fat and pancreatitis-prone breeds, calcium
+and large-breed puppies). Each note is paraphrased from the linked source,
+mostly the Merck Veterinary Manual.
+
+AAFCO's 2016 profile has maximums only for calcium, phosphorus, iodine,
+selenium and vitamins A and D. For six nutrients it leaves open-ended, the app
+carries an *advisory* upper level from elsewhere (`ADVISORY` in `src/data.js`,
+per 1,000 kcal, dry-matter figures converted at AAFCO's 4,000 kcal/kg
+convention): the EU legal maximums for copper, zinc, iron and manganese from
+the FEDIAF 2024 guidelines, FEDIAF's "shown safe" level for sodium, and the
+NRC's lower bound for magnesium as quoted in AAFCO's 2014 rationale. A diet
+above one is marked "above advisory level" rather than "over max", and the
+tooltip carries the reasoning and a link to the source. Vitamin E, potassium,
+the B vitamins, choline, protein and fat have no published upper figure for
+dogs and are left open.
+
+When a nutrient is added to the table, diets saved or shared earlier have no
+value for it. On load, `backfill()` fills such blanks from the built-in table
+for any food with a USDA id in its source note or a built-in's exact name.
+Only blanks are ever filled; typed values are never overwritten.
 
 A nutrient a source does not report is stored as `null`, not 0. USDA's SR
 Legacy records never carry iodine, for instance, and some lack choline or

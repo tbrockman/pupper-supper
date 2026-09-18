@@ -1,8 +1,8 @@
 import { EXAMPLE, EMPTY, WEIGHT_UNITS, blankFood, f } from "./data.js";
-import { S, setState, loadLocal, saveLocal, sanitize, store, weightKg, gramsPerDay } from "./state.js";
+import { S, setState, loadLocal, saveLocal, sanitize, backfill, store, weightKg, gramsPerDay } from "./state.js";
 import { renderFoods, renderAnalysis, toast, openEditors, esc, gramsText, initTooltips, badgeHtml, syncColumns } from "./render.js";
 import { encodeRecipe, decodeRecipe, readHash, buildHash } from "./share.js";
-import { search, searchBundled, bundledAt, bundledFdcId, nutrientsFor, setApiKey, DEMO_LIMIT, KEY_LIMIT, SIGNUP_URL } from "./fdc.js";
+import { search, searchBundled, searchCached, bundledAt, bundledFdcId, nutrientsFor, setApiKey, DEMO_LIMIT, KEY_LIMIT, SIGNUP_URL } from "./fdc.js";
 import { icon, mountIcons } from "./icons.js";
 import { initEditable, fitAll } from "./editable.js";
 
@@ -49,6 +49,7 @@ async function loadFromHash(){
   try{
     const next = sanitize(await decodeRecipe(recipe));
     if(!next) throw new Error("not a diet");
+    backfill(next);                      // a link made before a nutrient was added gets it from the built-in table
     setState(next); lastWritten = recipe;
     return true;
   }catch(err){
@@ -117,11 +118,6 @@ async function copyLink(){
   catch(e){ window.prompt("Copy this link:", url); }
 }
 $("copylink").addEventListener("click", copyLink);
-$("about").addEventListener("click", ()=>{
-  const f = $("disclaimer");
-  f.scrollIntoView({ behavior:"smooth", block:"center" });
-  f.classList.remove("flash"); void f.offsetWidth; f.classList.add("flash");
-});
 $("reset").addEventListener("click", ()=>{
   if(confirm("Replace this diet with the built-in example?")){
     setState(structuredClone(EXAMPLE)); openEditors.clear(); renderAll(); toast("Example diet loaded");
@@ -245,6 +241,14 @@ const resultsBox = $("results"), qBox = $("q");
 const opt = (attrs, label, meta) => `<div class="opt" role="option" ${attrs}><span>${label}</span><span class="dt">${meta}</span>${icon("plus",14)}</div>`;
 const localOpts = (q, exclude=new Set()) => searchBundled(q).filter(b=> !exclude.has(bundledFdcId(b)))
   .map(b=> opt(`data-local="${b.i}"`, esc(b.name), `built-in · ${esc(b.src)}`)).join("");
+/** USDA hits remembered from earlier searches, minus any that are built in or already listed. */
+let cachedHits = new Map();
+function cachedOpts(q, exclude=new Set()){
+  const bundledIds = new Set(searchBundled(q).map(bundledFdcId));
+  const hits = searchCached(q).filter(x=> !exclude.has(x.fdcId) && !bundledIds.has(x.fdcId));
+  cachedHits = new Map(hits.map(x=>[String(x.fdcId), x]));
+  return hits.map(x=> opt(`data-cached="${esc(x.fdcId)}"`, `${esc(x.description)}${x.brandOwner?` — ${esc(x.brandOwner)}`:""}`, `remembered · USDA ${esc(x.fdcId)} (${esc(x.dataType)})`)).join("");
+}
 const usdaOpt = q => `<div class="opt usda" role="option" data-usda="1"><span>Search USDA for “${esc(q)}”</span><span class="dt">FoodData Central</span>${icon("search",14)}</div>`;
 /** Footer row of a USDA result list when no personal key is set: says which key was used and offers the popover. */
 const demoRow = ()=> keyBox.value.trim() ? "" :
@@ -265,7 +269,7 @@ function showLocal(){
   const q = qBox.value.trim();
   if(!q){ close(); return; }
   const exact = searchBundled(q).some(b=> b.name.toLowerCase()===q.toLowerCase());
-  const local = localOpts(q);
+  const local = localOpts(q) + cachedOpts(q);
   // searching USDA is the default action unless the text names a built-in food exactly
   open(exact ? local + usdaOpt(q) : usdaOpt(q) + local);
 }
@@ -277,9 +281,9 @@ async function doSearch(){
     usdaHits = new Map(foods.map(x=>[String(x.fdcId), x]));
     const usda = foods.map(x=> opt(`data-fdc="${esc(x.fdcId)}"`, `${esc(x.description)}${x.brandOwner?` — ${esc(x.brandOwner)}`:""}`, esc(x.dataType))).join("");
     const local = localOpts(q, new Set(foods.map(x=>x.fdcId)));
-    open((usda ? `<div class="msg">USDA FoodData Central</div>${usda}` : `<div class="msg">No USDA results. Try simpler words (“sardine canned water”).</div>`)
-       + (local ? `<div class="msg">built-in</div>${local}` : "")
-       + demoRow());
+    open(demoRow()
+       + (usda ? `<div class="msg">USDA FoodData Central</div>${usda}` : `<div class="msg">No USDA results. Try simpler words (“sardine canned water”).</div>`)
+       + (local ? `<div class="msg">built-in</div>${local}` : ""));
   }catch(err){ const local = localOpts(q); problem(err, local ? `<div class="msg">built-in</div>${local}` : ""); }
 }
 async function choose(el){
@@ -288,6 +292,11 @@ async function choose(el){
   if(el.dataset.local!=null){
     const b = bundledAt(+el.dataset.local);
     addFood(f(b.name,"100","g","day",b.src,b.per100.slice()), "Added at 100 g a day — adjust the amount");
+    close(); qBox.value=""; return;
+  }
+  if(el.dataset.cached!=null){
+    const x = cachedHits.get(el.dataset.cached); if(!x) return;
+    addFood(f(x.description,"100","g","day",`USDA FDC ${x.fdcId}${x.dataType?` (${x.dataType})`:""}`,x.per100.slice()), "Added at 100 g a day — adjust the amount");
     close(); qBox.value=""; return;
   }
   const id = el.dataset.fdc; if(!id) return;

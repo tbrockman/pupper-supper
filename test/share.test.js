@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { encodeRecipe, decodeRecipe, readHash, buildHash } from "../src/share.js";
-import { EXAMPLE } from "../src/data.js";
+import { EXAMPLE, NUTS } from "../src/data.js";
 import { sanitize, setState, totals, gramsPerDay, weightKg, S } from "../src/state.js";
 
 const strip = s => ({ ...s, foods: s.foods.map(({ id, ...rest }) => rest) });
@@ -36,7 +36,7 @@ test("sanitize coerces a hostile recipe into a well-formed one", () => {
   assert.equal(s.foods[0].name, "Unnamed");
   assert.equal("kind" in s.foods[0], false);
   assert.equal(s.foods[0].amount, "0");
-  assert.equal(s.foods[0].per100.length, 24);
+  assert.equal(s.foods[0].per100.length, NUTS.length);
 });
 
 test("old batch/day/week recipes migrate to expressions with the same grams per day", async () => {

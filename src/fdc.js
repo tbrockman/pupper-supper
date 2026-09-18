@@ -1,6 +1,6 @@
 /* ---------- USDA FoodData Central search, with a localStorage cache ---------- */
 import { store } from "./state.js";
-import { NUTS } from "./data.js";
+import { NUTS, usdaId } from "./data.js";
 import { BUNDLED } from "./bundled.js";
 
 const API="https://api.nal.usda.gov/fdc/v1";
@@ -20,8 +20,29 @@ export function searchBundled(q){
   return BUNDLED.map((b,i)=>({...b, i})).filter(b=> toks.every(t=> b.name.toLowerCase().includes(t))).slice(0,8);
 }
 export const bundledAt = i => BUNDLED[i];
+/**
+ * USDA hits remembered from earlier searches in this browser, matched the same
+ * way as built-ins (every word of the query somewhere in the description).
+ * Instant and offline; nothing is fetched. De-duplicated by FoodData Central id.
+ */
+export function searchCached(q){
+  const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if(!toks.length) return [];
+  const seen = new Map();
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i); if(!k?.startsWith("fdc.s2.")) continue;
+      for(const x of store.get(k)||[]){
+        if(!x?.per100 || x.per100.length!==NUTS.length || seen.has(x.fdcId)) continue;
+        const text = `${x.description} ${x.brandOwner||""}`.toLowerCase();
+        if(toks.every(t=> text.includes(t))) seen.set(x.fdcId, x);
+      }
+    }
+  }catch(e){}
+  return [...seen.values()].slice(0,8);
+}
 /** FoodData Central id a bundled entry was built from, so USDA results can be de-duplicated against it. */
-export const bundledFdcId = b => +(/USDA (\d+)/.exec(b.src||"")||[])[1] || null;
+export const bundledFdcId = b => usdaId(b.src);
 
 export function cacheCount(){
   let n=0; try{ for(let i=0;i<localStorage.length;i++) if(localStorage.key(i).startsWith("fdc.")) n++; }catch(e){}
@@ -57,7 +78,7 @@ async function fetchJson(url){
  */
 export async function search(q){
   const key="fdc.s2."+q.toLowerCase();
-  const hit=store.get(key); if(hit) return hit;
+  const hit=store.get(key); if(hit && hit.every(x=> !x.per100 || x.per100.length===NUTS.length)) return hit; // a cache from before a nutrient was added is refetched
   const j = await fetchJson(`${API}/foods/search?api_key=${apiKey()}&query=${encodeURIComponent(q)}&pageSize=10&dataType=${encodeURIComponent("Foundation,SR Legacy,Branded")}`);
   const foods=(j.foods||[]).map(x=>{
     const per100 = mapNutrients(x);
@@ -69,7 +90,7 @@ export async function search(q){
    hundreds of KB and silently overflow localStorage) */
 export async function nutrientsFor(id){
   const key="fdc.d."+id;
-  const hit=store.get(key); if(hit) return hit;
+  const hit=store.get(key); if(hit && hit.per100?.length===NUTS.length) return hit;
   const food = await fetchJson(`${API}/food/${id}?api_key=${apiKey()}&format=abridged`);
   const rec = {dataType:food.dataType||"", per100:mapNutrients(food)};
   store.set(key,rec); return rec;
@@ -94,7 +115,12 @@ const MAP=[
  [[1109,"323",1.49]],                                     // vit E mg alpha-toc x1.49
  [[1165,"404",1]], [[1166,"405",1]], [[1175,"415",1]],    // B1 B2 B6
  [[1178,"418",1]], [[1177,"417",1],[1187,"431",1]],       // B12, folate
- [[1180,"421",1]], "EPA_DHA"];
+ [[1180,"421",1]], "EPA_DHA",
+ [[1269,"618",1],[1316,"675",1]],                         // linoleic 18:2 (n-6 c,c in newer records)
+ [[1270,"619",1],[1404,"851",1]],                         // alpha-linolenic 18:3 (n-3 c,c,c in newer records)
+ [[1271,"620",1]],                                        // arachidonic 20:4
+ [[1293,"646",1]],                                        // total PUFA
+ [[1167,"406",1]], [[1170,"410",1]]];                     // niacin, pantothenic acid
 const EPA=[1278,"629"], DHA=[1272,"621"];
 const VA_IU=[1104,"318"], VA_RAE=[1106,"320"], RETINOL=[1105,"319"], B_CAR=[1107,"321"], A_CAR=[1108,"322"], CRYPTO=[1120,"334"];
 if(MAP.length!==NUTS.length) throw new Error("FDC MAP does not match NUTS");

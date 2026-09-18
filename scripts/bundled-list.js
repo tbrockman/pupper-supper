@@ -2,6 +2,7 @@
  * Common ingredients bundled into the app so searching works without a USDA key.
  * `q` is the FoodData Central search query used by scripts/refresh-bundled.mjs;
  * `name` is what the app shows. Prefer SR Legacy / Foundation records.
+ * Manual entries list all NUTS.length values (see src/data.js for the order).
  */
 export const LIST = [
   { name: "Chicken breast, skinless, raw",        q: "Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw" },
@@ -24,13 +25,17 @@ export const LIST = [
   { name: "Cottage cheese, 2% fat",               q: "Cheese, cottage, lowfat, 2% milkfat" },
   { name: "Yogurt, plain, whole milk",            q: "Yogurt, plain, whole milk" },
   { name: "Rice, white, cooked",                  q: "Rice, white, long-grain, regular, unenriched, cooked without salt" },
+  { name: "Rice, white, dry",                     q: "Rice, white, long-grain, regular, raw, unenriched" },
   { name: "Rice, brown, cooked",                  q: "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)" },
   { name: "Oats, cooked (oatmeal)",               q: "Cereals, oats, regular and quick, unenriched, cooked with water (includes boiling and microwaving), without salt" },
   { name: "Quinoa, cooked",                       q: "Quinoa, cooked" },
   { name: "Sweet potato, baked in skin",          q: "Sweet potato, cooked, baked in skin, flesh, without salt" },
+  { name: "Sweet potato, raw",                    q: "Sweet potato, raw, unprepared (Includes foods for USDA's Food Distribution Program)" },
   { name: "Pumpkin, canned",                      q: "Pumpkin, canned, without salt" },
   { name: "Carrots, raw",                         q: "Carrots, raw" },
   { name: "Green beans, cooked",                  q: "Beans, snap, green, cooked, boiled, drained, without salt" },
+  { name: "Green beans, raw",                     q: "Beans, snap, green, raw" },
+  { name: "Corn, sweet, raw",                     q: "Corn, sweet, yellow, raw" },
   { name: "Broccoli, cooked",                     q: "Broccoli, cooked, boiled, drained, without salt" },
   { name: "Spinach, raw",                         q: "Spinach, raw" },
   { name: "Peas, green, cooked",                  q: "Peas, green, cooked, boiled, drained, without salt" },
@@ -43,11 +48,11 @@ export const LIST = [
   { name: "Flaxseed, ground",                     q: "Seeds, flaxseed" },
   { name: "Peanut butter, smooth",                q: "Peanut butter, smooth style, without salt" },
   { name: "Eggshell powder (calcium)",            manual: true, src: "~38% calcium by weight",
-    per100: [0,0,0,38000,120,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+    per100: [0,0,0,38000,120,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
   { name: "Calcium carbonate powder",             manual: true, src: "40% elemental calcium",
-    per100: [0,0,0,40000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+    per100: [0,0,0,40000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
   { name: "Bone meal powder",                     manual: true, src: "~typical supplement: 30% Ca, 14% P",
-    per100: [0,0,0,30000,14000,0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
+    per100: [0,0,0,30000,14000,0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
   { name: "Kelp powder",                          manual: true, src: "~typical dried kelp; iodine varies widely by product",
-    per100: [43,1.7,.6,168,42,89,233,121,2.8,1.2,.13,.2,.7,150000,116,0,1.3,.05,.15,0,0,180,13,0] },
+    per100: [43,1.7,.6,168,42,89,233,121,2.8,1.2,.13,.2,.7,150000,116,0,1.3,.05,.15,0,0,180,13,0,.05,.01,0,.06,.5,.6] },
 ];
