@@ -107,7 +107,7 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 .qwrap{position:relative; flex:1 1 14rem; min-width:0; display:flex}
 .qwrap > input{width:100%}
 #results{position:absolute; left:0; right:0; top:calc(100% + .35rem); z-index:30; border:1px solid var(--rule); background:#fff;
-  max-height:18rem; overflow:auto; font-size:.84rem; border-radius:4px; padding:.3rem; box-shadow:0 6px 24px rgba(34,56,46,.12)}
+  max-height:18rem; overflow:auto; font-size:.84rem; border-radius:4px; padding:.3rem;}
 #results[hidden]{display:none}
 #results .opt{padding:.4rem .6rem; border-radius:3px; display:flex; gap:.6rem; align-items:center; cursor:pointer}
 #results .opt > span:first-child{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -136,7 +136,7 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 #keybtn{position:absolute; right:.25rem; top:50%; transform:translateY(-50%); color:var(--ink-soft)}
 #keybtn.on{color:var(--moss)}
 .keypop{position:absolute; right:0; top:calc(100% + .35rem); z-index:32; width:min(24rem, 100%); background:#fff; border:1px solid var(--rule);
-  border-radius:4px; padding:.7rem .8rem; box-shadow:0 6px 24px rgba(34,56,46,.12); font-size:.8rem; color:var(--ink-soft)}
+  border-radius:4px; padding:.7rem .8rem; font-size:.8rem; color:var(--ink-soft)}
 .keypop[hidden]{display:none}
 .keypop p{margin:0 0 .6rem; line-height:1.45}
 .keypop > label{display:block; font-size:.72rem; margin-bottom:.2rem}
@@ -211,7 +211,7 @@ footer#disclaimer.flash{animation:rowflash 1.6s ease-out}
 @media (prefers-reduced-motion: reduce){ .toast{transition:none} }
 .share, .menu{position:relative}
 .menupop{position:absolute; left:0; top:2.1rem; z-index:35; min-width:15rem; background:#fff; border:1px solid var(--rule);
-  border-radius:4px; padding:.3rem; box-shadow:0 6px 24px rgba(34,56,46,.12)}
+  border-radius:4px; padding:.3rem;}
 .menupop[hidden]{display:none}
 .menupop.flip{left:auto; right:0}
 .menupop{font-weight:400; letter-spacing:0; font-size:.86rem; line-height:1.4}
@@ -223,8 +223,7 @@ footer#disclaimer.flash{animation:rowflash 1.6s ease-out}
 .menupop button:focus .ico, .menupop a:focus .ico{color:var(--bone)}
 .menupop .sep{height:1px; background:var(--rule); margin:.3rem .4rem}
 .sharepop{position:absolute; right:0; top:2.3rem; z-index:35; width:min(26rem, 92vw);
-  background:#fff; border:1px solid var(--rule); border-radius:4px; padding:.7rem .8rem;
-  box-shadow:0 6px 24px rgba(34,56,46,.12); font-size:.8rem; color:var(--ink-soft)}
+  background:#fff; border:1px solid var(--rule); border-radius:4px; padding:.7rem .8rem;font-size:.8rem; color:var(--ink-soft)}
 .sharepop[hidden]{display:none}
 .sharepop input[type=text]{width:100%; margin:.4rem 0; font-size:.75rem}
 .sharepop .row{display:flex; gap:.6rem; align-items:center; justify-content:space-between; flex-wrap:wrap}
@@ -234,6 +233,8 @@ footer#disclaimer.flash{animation:rowflash 1.6s ease-out}
 /* ---------- small screens ---------- */
 @media (max-width: 640px){
   html{font-size:14px}
+  h1 .menu{margin-left:auto}
+  .menupop{left:auto; right:0}
   header{padding:.7rem .9rem .6rem}
   h1{font-size:1.25rem}
   main{padding:.6rem .9rem; gap:0}

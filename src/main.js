@@ -106,7 +106,10 @@ menu.addEventListener("keydown", e=>{
   else if(e.key==="Escape"){ toggleMenu(false); moreBtn.focus(); }
 });
 menu.addEventListener("mousemove", e=>{ const it = e.target.closest("[role=menuitem]"); if(it && it!==document.activeElement) it.focus(); });
-menu.addEventListener("focusout", e=>{ if(!menu.contains(e.relatedTarget) && e.relatedTarget!==moreBtn) toggleMenu(false); });
+// close when focus moves to something else outside the menu. A null relatedTarget is *not* that:
+// iOS Safari blurs the focused item when a tap lands on a button (buttons never take focus there),
+// and closing on it would hide the item before its click arrives.
+menu.addEventListener("focusout", e=>{ if(e.relatedTarget && !menu.contains(e.relatedTarget) && e.relatedTarget!==moreBtn) toggleMenu(false); });
 document.addEventListener("click", e=>{ if(!e.target.closest(".menu")) toggleMenu(false); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") toggleMenu(false); });
 
