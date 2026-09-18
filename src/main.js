@@ -304,6 +304,14 @@ resultsBox.addEventListener("mousedown", e=> e.preventDefault()); // keep focus 
 resultsBox.addEventListener("click", e=> choose(e.target.closest(".opt")));
 document.addEventListener("click", e=>{ if(!e.target.closest(".searchbar")) close(); });
 
+/* ---------- iOS Safari zooms into any focused control under 16px; maximum-scale=1 stops that
+   and, since iOS 10, still leaves pinch zoom alone. Applied only on iOS because Android
+   Chrome would honour it by disabling pinch zoom. ---------- */
+if(/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1)){
+  const vp = document.querySelector("meta[name=viewport]");
+  if(vp && !/maximum-scale/.test(vp.content)) vp.content += ", maximum-scale=1";
+}
+
 /* ---------- installable: register the service worker (production build only) ---------- */
 if("serviceWorker" in navigator && import.meta.env.PROD){
   window.addEventListener("load", ()=> navigator.serviceWorker.register("/sw.js").catch(e=> console.warn("service worker:", e)));
