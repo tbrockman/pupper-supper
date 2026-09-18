@@ -118,6 +118,9 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 #results .opt.busy{opacity:.5; pointer-events:none}
 #results .dt{color:var(--ink-soft); font-size:.7rem; white-space:nowrap}
 #results .msg{padding:.35rem .6rem .15rem; color:var(--ink-soft); font-size:.7rem}
+#results .keymsg{display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap; margin-top:.3rem; padding:.4rem .6rem;
+  background:var(--wash); border-radius:3px}
+#results .keymsg button{padding:.15rem .5rem; font-size:.72rem}
 /* problems: one dismissable card under the search box, and a log of past ones */
 #alerts{position:absolute; left:0; right:0; top:calc(100% + .35rem); z-index:31}
 #alerts:empty{display:none}
@@ -134,7 +137,7 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 /* API key lives behind a key icon inside the search box */
 .qwrap input#q{padding-right:2.2rem}
 #keybtn{position:absolute; right:.25rem; top:50%; transform:translateY(-50%); color:var(--ink-soft)}
-#keybtn.on{color:var(--moss)}
+#keybtn.on, #keybtn.on:hover{background:transparent; color:var(--moss)} /* "key set" is a colour change, not the pressed-toggle fill */
 .keypop{position:absolute; right:0; top:calc(100% + .35rem); z-index:32; width:min(24rem, 100%); background:#fff; border:1px solid var(--rule);
   border-radius:4px; padding:.7rem .8rem; font-size:.8rem; color:var(--ink-soft)}
 .keypop[hidden]{display:none}
@@ -145,7 +148,6 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 .keypop .sharekey{display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem}
 .keypop .sharekey:has(input:disabled){opacity:.5}
 .keypop a, h2 .note a{color:var(--moss); display:inline-flex; align-items:center; gap:.2rem}
-#alerts .notice.soft{background:#fff; border-color:var(--rule)} #alerts .notice.soft > .ico{color:var(--moss)}
 
 /* ---------- analysis ---------- */
 #tbl-vitals{margin:.3rem 0 .6rem}

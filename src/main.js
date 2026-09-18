@@ -27,18 +27,6 @@ function toggleKeyPop(show = keyPop.hidden){
 keyBtn.addEventListener("click", ()=> toggleKeyPop());
 document.addEventListener("click", e=>{ if(!e.target.closest("#keypop, #keybtn, [data-act=key]")) toggleKeyPop(false); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !keyPop.hidden){ toggleKeyPop(false); keyBtn.focus(); } });
-/* one-time hint after the first USDA search without a key */
-function keyHintOnce(){
-  if(store.get("lady.keyhint") || keyBox.value) return;
-  store.set("lady.keyhint", true);
-  alertsEl.innerHTML = `<div class="notice soft">${icon("key")}<div class="body"><p><strong>That search used USDA\u2019s shared demo key.</strong></p>
-    <p>It allows about ${DEMO_LIMIT} requests an hour for everyone on your network. A free personal key allows ${KEY_LIMIT}; add one behind the ${icon("key",12)} icon in the search box.</p>
-    <div class="row"><button data-act="key">${icon("key",14)}Add a key</button></div></div>
-    <button class="quiet iconbtn" data-act="close" aria-label="Dismiss">${icon("x",14)}</button></div>`;
-}
-shareKey.checked = !!store.get("lady.sharekey");
-shareKey.addEventListener("change", ()=> store.set("lady.sharekey", shareKey.checked));
-
 /* ---------- URL <-> state ---------- */
 let lastWritten = null;                 // encoded diet we last put in the address bar
 let syncTimer = null;
@@ -237,6 +225,9 @@ const opt = (attrs, label, meta) => `<div class="opt" role="option" ${attrs}><sp
 const localOpts = (q, exclude=new Set()) => searchBundled(q).filter(b=> !exclude.has(bundledFdcId(b)))
   .map(b=> opt(`data-local="${b.i}"`, esc(b.name), `built-in · ${esc(b.src)}`)).join("");
 const usdaOpt = q => `<div class="opt usda" role="option" data-usda="1"><span>Search USDA for “${esc(q)}”</span><span class="dt">FoodData Central</span>${icon("search",14)}</div>`;
+/** Footer row of a USDA result list when no personal key is set: says which key was used and offers the popover. */
+const demoRow = ()=> keyBox.value.trim() ? "" :
+  `<div class="msg keymsg"><span>Searched with USDA\u2019s shared demo key \u00b7 about ${DEMO_LIMIT} an hour for your whole network</span><button type="button" data-act="key">${icon("key",12)}Use your own key</button></div>`;
 let usdaHits = new Map();   // fdcId -> search hit (with per100) for the list on screen
 let active = -1;
 const options = ()=> [...resultsBox.querySelectorAll(".opt")];
@@ -266,8 +257,8 @@ async function doSearch(){
     const usda = foods.map(x=> opt(`data-fdc="${esc(x.fdcId)}"`, `${esc(x.description)}${x.brandOwner?` — ${esc(x.brandOwner)}`:""}`, esc(x.dataType))).join("");
     const local = localOpts(q, new Set(foods.map(x=>x.fdcId)));
     open((usda ? `<div class="msg">USDA FoodData Central</div>${usda}` : `<div class="msg">No USDA results. Try simpler words (“sardine canned water”).</div>`)
-       + (local ? `<div class="msg">built-in</div>${local}` : ""));
-    keyHintOnce();
+       + (local ? `<div class="msg">built-in</div>${local}` : "")
+       + demoRow());
   }catch(err){ close(); problem(err); }
 }
 async function choose(el){
@@ -304,7 +295,10 @@ qBox.addEventListener("keydown", e=>{
 $("go").addEventListener("click", doSearch);
 resultsBox.addEventListener("mousemove", e=>{ const o = e.target.closest(".opt"); if(o){ const i = options().indexOf(o); if(i!==active) setActive(i); } });
 resultsBox.addEventListener("mousedown", e=> e.preventDefault()); // keep focus in the search box
-resultsBox.addEventListener("click", e=> choose(e.target.closest(".opt")));
+resultsBox.addEventListener("click", e=>{
+  if(e.target.closest("[data-act=key]")){ toggleKeyPop(true); return; }
+  choose(e.target.closest(".opt"));
+});
 document.addEventListener("click", e=>{ if(!e.target.closest(".searchbar")) close(); });
 
 /* ---------- iOS Safari zooms into any focused control under 16px; maximum-scale=1 stops that
