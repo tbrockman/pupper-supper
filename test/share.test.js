@@ -92,6 +92,12 @@ test("units and periods convert to grams per day", () => {
   assert.equal(+totals()[0].toFixed(3), +g.reduce((a, b) => a + b).toFixed(3));
 });
 
+test("unknown nutrient values survive a share link as null, not 0", async () => {
+  const d = sanitize({ foods: [{ name: "x", amount: "10", per100: [100, null, 5] }] });
+  const back = sanitize(await decodeRecipe(await encodeRecipe(d)));
+  assert.deepEqual(back.foods[0].per100.slice(0, 4), [100, null, 5, null]);
+});
+
 test("totals ignore rows whose expression does not parse", () => {
   setState(sanitize({ foods: [
     { name: "a", amount: "100", per100: [200] },

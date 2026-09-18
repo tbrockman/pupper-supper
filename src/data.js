@@ -29,13 +29,13 @@ export function newId(){ return Math.random().toString(36).slice(2); }
  * Build a food item.
  *  amount  = a number or small arithmetic expression, e.g. "400*2/10"
  *  unit    = key of UNITS; per = key of PERIODS
- *  per100  = 24 numbers in NUTS order, per 100 g
+ *  per100  = 24 values in NUTS order, per 100 g; null = not known
  */
 export function f(name, amount, unit, per, src, per100){
   return {id:newId(), name, amount:String(amount), unit, per, src, per100};
 }
 
-/** Empty item for "Custom food". */
+/** Empty item for "Custom food": every nutrient starts at 0; clear a field to mark it unknown. */
 export function blankFood(){
   return f("New food", "0", "g", "day", "A manually added food item", NUTS.map(()=>0));
 }
@@ -43,7 +43,6 @@ export function blankFood(){
 export const EMPTY = { title: DEFAULT_TITLE, weight: 20, weightUnit: "kg", activity: 1.6, foods: [] };
 
 /* ---------- example recipe: a 22 kg active dog on a mixed home-cooked / kibble diet ---------- */
-/* Home-cooked items are cooked as a 10-cup batch of which 2 cups are fed a day (hence *2/10). */
 export const EXAMPLE = {
  title: DEFAULT_TITLE, weight:23, weightUnit:"kg", activity:2.4,
  foods:[

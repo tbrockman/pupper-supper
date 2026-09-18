@@ -4,8 +4,11 @@
  *   FDC_KEY=your-key node scripts/refresh-bundled.mjs            # all foods
  *   FDC_KEY=DEMO_KEY LIMIT=3 node scripts/refresh-bundled.mjs   # first 3 (DEMO_KEY allows 10 req/h)
  *
- * One search per food plus one batched detail request per 20 foods.
- * Entries marked `manual` are copied through untouched.
+ * One batched detail request per 20 foods, plus one search for each food whose
+ * FoodData Central id is not already recorded in src/bundled.js (so a routine
+ * refresh of the existing list fits inside DEMO_KEY's hourly allowance).
+ * Set SEARCH=1 to look every food up again. Entries marked `manual` are
+ * copied through untouched. Nutrients a record does not report stay null.
  */
 import { writeFileSync, existsSync } from "node:fs";
 import { LIST } from "./bundled-list.js";
@@ -38,7 +41,10 @@ const searchable = q => q.replace(/[^\w\s,.-]/g, " ").replace(/\s+/g, " ").trim(
 
 const todo = LIST.filter(x=>!x.manual).slice(0, LIMIT);
 const found = [];
+const knownId = item => process.env.SEARCH ? null : +(/USDA (\d+)/.exec(previous[item.name]?.src||"")||[])[1] || null;
 for(const item of todo){
+  const known = knownId(item);
+  if(known){ found.push({ ...item, fdcId: known, description: item.q, dataType: (/\((.*)\)/.exec(previous[item.name].src)||[])[1]||"" }); continue; }
   let j;
   try{ j = await get(`/foods/search?query=${encodeURIComponent(searchable(item.q))}&dataType=${encodeURIComponent("SR Legacy,Foundation")}&pageSize=25`); }
   catch(e){ console.warn(`search failed for ${item.name}: ${e.message}`); continue; }
@@ -60,7 +66,7 @@ for(let i=0;i<found.length;i+=20){
 const out = LIST.map(item=>{
   if(item.manual) return { name:item.name, src:item.src, per100:item.per100 };
   const fresh = found.find(x=>x.name===item.name && x.per100);
-  if(fresh) return { name:item.name, src:`USDA ${fresh.fdcId} (${fresh.dataType})`, per100: fresh.per100.map(v=>+(+v).toFixed(3)) };
+  if(fresh) return { name:item.name, src:`USDA ${fresh.fdcId} (${fresh.dataType})`, per100: fresh.per100.map(v=> v==null ? null : +(+v).toFixed(3)) };
   if(previous[item.name]) return previous[item.name];
   console.warn(`no data for ${item.name}; leaving it out`);
   return null;

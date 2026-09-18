@@ -1,11 +1,14 @@
 /**
  * Tiny, safe arithmetic evaluator for the "grams per day" column.
  * Supports numbers, + - * / and parentheses; "x" and "×" mean multiply.
+ * A comma followed by exactly three digits groups thousands ("1,000"); any
+ * other comma is a decimal point ("2,5" is 2.5, not 25).
  * Returns NaN for anything it does not understand (never throws, never evals).
  */
 export function evalExpr(input){
   const s = String(input ?? "")
-    .replace(/\s+/g, "").replace(/[x×]/gi, "*").replace(/[÷]/g, "/").replace(/,/g, "");
+    .replace(/\s+/g, "").replace(/[x×]/gi, "*").replace(/[÷]/g, "/")
+    .replace(/(?<=\d),(?=\d{3}(?!\d))/g, "").replace(/,/g, ".");
   if(!s) return 0;
   let i = 0;
   const peek = () => s[i];

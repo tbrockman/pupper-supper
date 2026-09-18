@@ -14,6 +14,10 @@ export function loadLocal(){ return sanitize(store.get("lady.state")) || structu
 export function saveLocal(){ store.set("lady.state", S); }
 
 const num = (v,d)=> Number.isFinite(+v) && v!=="" && v!==null ? +v : d;
+/** a number that cannot sensibly be negative (weights, amounts of a nutrient) */
+const pos = (v,d)=> Math.max(0, num(v,d));
+/** a nutrient value: a non-negative number, or null when the source did not report it */
+const nut = v => v==null || v==="" || !Number.isFinite(+v) ? null : Math.max(0, +v);
 const str = (v,d="")=> typeof v==="string" ? v.slice(0,300) : d;
 
 /**
@@ -44,9 +48,9 @@ export function sanitize(raw){
   if("batchCups" in raw || raw.foods.some(x=>x && "mode" in x)) raw = migrateV1(raw);
   return {
     title:    str(raw.title, DEFAULT_TITLE).trim() || DEFAULT_TITLE,
-    weight:   num(raw.weight, EXAMPLE.weight),
+    weight:   pos(raw.weight, EXAMPLE.weight),
     weightUnit: raw.weightUnit in WEIGHT_UNITS ? raw.weightUnit : "kg",
-    activity: num(raw.activity, EXAMPLE.activity),
+    activity: pos(raw.activity, EXAMPLE.activity),
     foods: raw.foods.filter(x=>x && typeof x==="object").map(x=>({
       id:     str(x.id) || newId(),
       name:   str(x.name, "Unnamed"),
@@ -54,24 +58,42 @@ export function sanitize(raw){
       unit:   x.unit in UNITS ? x.unit : "g",
       per:    x.per in PERIODS ? x.per : "day",
       src:    str(x.src),
-      per100: NUTS.map((_,j)=> num(Array.isArray(x.per100)? x.per100[j] : 0, 0)),
+      per100: NUTS.map((_,j)=> nut(Array.isArray(x.per100)? x.per100[j] : null)),
     })),
   };
 }
 
 /* ---------- ration maths ---------- */
+/* Each takes the diet to work on and defaults to the current one, so the same
+   functions serve the page and the tests. */
 /** the dog's weight in kilograms, whatever unit it was entered in */
-export const weightKg = () => S.weight * WEIGHT_UNITS[S.weightUnit];
+export const weightKg = (state = S) => state.weight * WEIGHT_UNITS[state.weightUnit];
 /** grams per day for an item; NaN when its expression does not parse */
 export const gramsPerDay = it => evalExpr(it.amount) * UNITS[it.unit] / PERIODS[it.per];
 const g0 = it => { const g = gramsPerDay(it); return Number.isFinite(g) && g>0 ? g : 0; };
 
-export function totals(){
+/** amount of each nutrient eaten per day, in NUTS order and units; unknown values count as 0, see missing() */
+export function totals(state = S){
   const t = NUTS.map(()=>0);
-  for(const it of S.foods){
+  for(const it of state.foods){
     const g = g0(it);
-    it.per100.forEach((v,j)=> t[j]+= g*(v||0)/100);
+    it.per100.forEach((v,j)=> t[j]+= g*Math.max(0, v||0)/100);
   }
   return t;
 }
-export const totalGrams = () => S.foods.reduce((a,x)=>a+g0(x),0);
+export const totalGrams = (state = S) => state.foods.reduce((a,x)=>a+g0(x),0);
+/** indexes of the nutrients an item does not report */
+export const unknownOf = it => it.per100.map((v,j)=> v==null ? j : -1).filter(j=>j>=0);
+/**
+ * For each nutrient, the foods actually being fed (grams > 0) whose value for
+ * it is unknown, as [{ name, grams }]. A non-empty list means that nutrient's
+ * total is a lower bound.
+ */
+export function missing(state = S){
+  const m = NUTS.map(()=>[]);
+  for(const it of state.foods){
+    const g = g0(it); if(!g) continue;
+    it.per100.forEach((v,j)=>{ if(v==null) m[j].push({ name: it.name, grams: g }); });
+  }
+  return m;
+}

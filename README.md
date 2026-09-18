@@ -18,7 +18,8 @@ src/
   editable.js     inline editable text component (title, food names)
   bundled.js      built-in ingredients (generated, see scripts/)
   expr.js         safe arithmetic evaluator for the grams/day column
-  state.js        current diet, localStorage, daily maths, sanitize() + migration
+  state.js        current diet, localStorage, grams/day + daily totals, sanitize() + migration
+  analysis.js     energy need, AAFCO comparison (pure functions; what the tests cover)
   share.js        diet <-> compressed URL hash (formats v1–v3)
   fdc.js          built-in search, USDA FoodData Central client, classified errors
   render.js       tables, analysis, toast
@@ -27,7 +28,7 @@ public/_headers   security headers applied by Pages (CSP, cache)
 public/icons/     app icons for the installable (PWA) build
 vite.config.js    build + PWA manifest / service worker (vite-plugin-pwa)
 scripts/          regenerate src/bundled.js from USDA (needs an API key)
-test/             node --test unit tests (URL encoding, migration, expressions, bundle)
+test/             node --test unit tests (diet maths, URL encoding, migration, expressions, USDA mapping, bundle)
 dist/             build output (generated; this is what gets deployed)
 wrangler.toml     Pages project name + output dir
 ```
@@ -44,7 +45,7 @@ Updates apply automatically on the next visit after a deploy.
 ```sh
 npm install
 npm run dev        # http://localhost:5173 with hot reload
-npm test           # URL round-trip tests
+npm test           # unit tests
 npm run build      # writes dist/
 npm run preview    # serves dist/ locally
 FDC_KEY=... node scripts/refresh-bundled.mjs   # refresh built-in ingredients from USDA
@@ -52,6 +53,24 @@ FDC_KEY=... node scripts/refresh-bundled.mjs   # refresh built-in ingredients fr
 
 To add a built-in ingredient, append its exact FoodData Central description to
 `scripts/bundled-list.js` and run the refresh script.
+
+## How the analysis works
+
+Every food is converted to grams per day (amount expression × unit × 1/period),
+and its per-100 g nutrients are scaled by that. The dog's energy need is
+RER × activity, where RER = 70 × kg^0.75. AAFCO states its adult-maintenance
+profile per 1,000 kcal on the assumption that the food is fed to meet the
+energy need, so each minimum and maximum is multiplied by (need ÷ 1,000) to get
+an amount per day, and that is what the day's intake is judged against. The
+diet's nutrient density per 1,000 kcal is shown alongside for reference: it
+says whether the *food* is balanced, while the per-day columns say whether the
+*dog* is getting enough.
+
+A nutrient a source does not report is stored as `null`, not 0. USDA's SR
+Legacy records never carry iodine, for instance, and some lack choline or
+vitamin E. Such values count as 0 in the totals, but the food's editor button
+shows how many are unknown, the editor leaves those fields blank, and the
+analysis marks the affected nutrients as lower bounds.
 
 ## Sharing a diet
 

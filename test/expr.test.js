@@ -21,3 +21,15 @@ test("rejects anything that is not arithmetic", () => {
   for (const bad of ["100/", "abc", "1+", "(1", "1)", "alert(1)", "1e3", "2**3", "1;2", "Math.PI", "1/0"])
     assert.ok(Number.isNaN(evalExpr(bad)), `expected NaN for ${JSON.stringify(bad)}`);
 });
+
+test("commas: thousands separators when grouping three digits, decimal points otherwise", () => {
+  assert.equal(evalExpr("1,000"), 1000);
+  assert.equal(evalExpr("1,000,000/1000"), 1000);
+  assert.equal(evalExpr("1,000.5"), 1000.5);
+  assert.equal(evalExpr("2,5"), 2.5);        // a decimal comma is not 25 g
+  assert.equal(evalExpr("0,75*100"), 75);
+  assert.equal(evalExpr("12,50"), 12.5);
+  assert.equal(evalExpr("1,2345"), 1.2345);
+  assert.ok(Number.isNaN(evalExpr("1,2,3")));
+  assert.ok(Number.isNaN(evalExpr("1.5,2")));
+});

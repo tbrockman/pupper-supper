@@ -1,6 +1,6 @@
 import { EXAMPLE, EMPTY, WEIGHT_UNITS, blankFood, f } from "./data.js";
-import { S, setState, loadLocal, saveLocal, sanitize, store, weightKg } from "./state.js";
-import { renderFoods, renderAnalysis, toast, openEditor, setOpenEditor, esc, gramsText, initTooltips } from "./render.js";
+import { S, setState, loadLocal, saveLocal, sanitize, store, weightKg, gramsPerDay } from "./state.js";
+import { renderFoods, renderAnalysis, toast, openEditors, esc, gramsText, initTooltips, badgeHtml, syncColumns } from "./render.js";
 import { encodeRecipe, decodeRecipe, readHash, buildHash } from "./share.js";
 import { search, searchBundled, bundledAt, bundledFdcId, nutrientsFor, setApiKey, DEMO_LIMIT, KEY_LIMIT, SIGNUP_URL } from "./fdc.js";
 import { icon, mountIcons } from "./icons.js";
@@ -124,17 +124,27 @@ $("about").addEventListener("click", ()=>{
 });
 $("reset").addEventListener("click", ()=>{
   if(confirm("Replace this diet with the built-in example?")){
-    setState(structuredClone(EXAMPLE)); setOpenEditor(null); renderAll(); toast("Example diet loaded");
+    setState(structuredClone(EXAMPLE)); openEditors.clear(); renderAll(); toast("Example diet loaded");
   }
 });
 $("new").addEventListener("click", ()=>{
   if(!S.foods.length || confirm("Start a new, empty diet? The current one stays in the address bar until you leave this page.")){
-    setState(structuredClone(EMPTY)); setOpenEditor(null); renderAll(); toast("Empty diet — add some foods");
+    setState(structuredClone(EMPTY)); openEditors.clear(); renderAll(); toast("Empty diet — add some foods");
   }
 });
 
 /* ---------- food table events ---------- */
 const tbl = $("tbl-foods");
+/* the amount field is text because it takes arithmetic ("400*2/10"), so restrict it to what the
+   expression parser accepts: digits, a decimal point or comma, + - * / (also x × ÷), brackets, spaces */
+const NOT_AMOUNT = /[^0-9.,+\-*/x×÷()\s]/gi;
+tbl.addEventListener("beforeinput", e=>{
+  if(e.target.dataset.f!=="amount" || e.data==null) return;
+  const clean = e.data.replace(NOT_AMOUNT, "");
+  if(clean===e.data) return;
+  e.preventDefault();                                   // typed or pasted text with other characters: keep only the allowed ones
+  if(clean){ e.target.setRangeText(clean, e.target.selectionStart, e.target.selectionEnd, "end"); e.target.dispatchEvent(new Event("input", { bubbles:true })); }
+});
 tbl.addEventListener("input", e=>{
   const tr = e.target.closest("tr[data-id]");
   if(!tr) return;
@@ -146,7 +156,13 @@ tbl.addEventListener("input", e=>{
   else if(fld==="amount") it.amount = e.target.value;
   else if(fld==="unit") it.unit = e.target.value;
   else if(fld==="per") it.per = e.target.value;
-  else if(fld==="n") it.per100[+e.target.dataset.j] = +e.target.value||0;
+  else if(fld==="n"){ // blank = not known (counts as 0 but is flagged); a number, 0 included, = known
+    const v = e.target.value.trim();
+    it.per100[+e.target.dataset.j] = v==="" ? null : Math.max(0, +v||0);
+    e.target.closest("label").classList.toggle("unknown", v==="");
+    const btn = tbl.querySelector(`tr[data-id="${it.id}"] button[data-f="edit"]`);
+    if(btn){ btn.querySelector(".badge")?.remove(); btn.insertAdjacentHTML("beforeend", badgeHtml(it)); }
+  }
   else return;
   if(fld==="amount" || fld==="unit" || fld==="per"){
     const gd = tr.querySelector(".gday"), amt = tr.querySelector('input[data-f="amount"]');
@@ -160,10 +176,10 @@ tbl.addEventListener("click", e=>{
   const btn = e.target.closest("button[data-f]"); if(!btn) return;
   const id = btn.closest("tr").dataset.id;
   if(btn.dataset.f==="del"){
-    if(openEditor===id) setOpenEditor(null);
+    openEditors.delete(id);
     S.foods = S.foods.filter(x=>x.id!==id); renderAll();
   } else if(btn.dataset.f==="edit"){
-    setOpenEditor(openEditor===id ? null : id);
+    if(!openEditors.delete(id)) openEditors.add(id);
     renderFoods();
   }
 });
@@ -175,9 +191,22 @@ function addFood(it, msg){
   return row;
 }
 $("addfood").addEventListener("click", ()=>{
-  const it = blankFood(); setOpenEditor(it.id);
+  const it = blankFood(); openEditors.add(it.id);
   const row = addFood(it, "Name it, set the amount, then type its nutrients per 100 g");
   const n = row?.querySelector('input[data-f="name"]'); if(n){ n.focus(); n.select(); }
+});
+/* a tap on an analysis warning's tooltip: open the editors of the foods missing that nutrient and go to them */
+document.addEventListener("jump-to-missing", e=>{
+  const j = e.detail.j;
+  const hits = S.foods.filter(x=> x.per100[j]==null && gramsPerDay(x) > 0);
+  if(!hits.length) return;
+  hits.forEach(x=> openEditors.add(x.id));
+  renderFoods();
+  const rows = hits.map(x=> tbl.querySelector(`tr.editor[data-id="${x.id}"]`)).filter(Boolean);
+  rows.forEach(r=>{ r.classList.add("flash"); r.previousElementSibling?.classList.add("flash"); });
+  const first = rows[0]?.querySelector(`input[data-f="n"][data-j="${j}"]`);
+  if(first){ first.focus({ preventScroll:true }); first.closest("label")?.classList.add("flash"); }
+  rows[0]?.previousElementSibling?.scrollIntoView({ block:"start", behavior:"smooth" });
 });
 document.getElementById("tbl-in").addEventListener("input", e=>{
   if(e.target.id==="g-weightUnit"){
@@ -186,15 +215,8 @@ document.getElementById("tbl-in").addEventListener("input", e=>{
     S.weight = Math.round(kg / WEIGHT_UNITS[S.weightUnit] * 10) / 10;
     renderAll(); return;
   }
-  if(e.target.dataset.g){ S[e.target.dataset.g] = +e.target.value||0; renderAll(); }
+  if(e.target.dataset.g){ S[e.target.dataset.g] = Math.max(0, +e.target.value||0); renderAll(); }
 });
-$("allcols").addEventListener("click", e=>{
-  const on = $("tbl-an").classList.toggle("allcols");
-  e.currentTarget.setAttribute("aria-pressed", String(on));
-  e.currentTarget.classList.toggle("on", on);
-  e.currentTarget.title = on ? "Hide the per-day and minimum columns" : "Show the per-day and minimum columns";
-});
-
 /* ---------- problems: a dismissable notice at the top of the search results ---------- */
 function problemHtml(err){
   const link = txt => `<a href="${SIGNUP_URL}" target="_blank" rel="noopener">${txt} ${icon("external",12)}</a>`;
@@ -316,6 +338,9 @@ if(/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform==="MacIntel
 if("serviceWorker" in navigator && import.meta.env.PROD){
   window.addEventListener("load", ()=> navigator.serviceWorker.register("/sw.js").catch(e=> console.warn("service worker:", e)));
 }
+
+let colTimer = null;
+window.addEventListener("resize", ()=>{ clearTimeout(colTimer); colTimer = setTimeout(syncColumns, 100); });
 
 /* ---------- boot ---------- */
 (async ()=>{

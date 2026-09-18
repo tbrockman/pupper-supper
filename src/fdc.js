@@ -77,9 +77,11 @@ export async function nutrientsFor(id){
 
 /* FDC nutrient mapping → our 24 columns.
    Each candidate is [modernId, legacyNumberString, multiplier]; first found wins.
-   FDC responses carry identifiers inconsistently: full details use
-   nutrient.id / nutrient.number / amount, abridged details use number / amount,
-   and search hits use nutrientId / nutrientNumber / value. Index by id and number. */
+   A nutrient the record does not report at all maps to null ("unknown"), which
+   the app shows as missing data rather than as zero. FDC responses carry
+   identifiers inconsistently: full details use nutrient.id / nutrient.number /
+   amount, abridged details use number / amount, and search hits use
+   nutrientId / nutrientNumber / value. Index by id and number. */
 const MAP=[
  [[1008,"208",1],[2047,"957",1],[2048,"958",1]],          // kcal
  [[1003,"203",1]], [[1004,"204",1],[1085,"298",1]],       // protein, fat
@@ -87,14 +89,28 @@ const MAP=[
  [[1093,"307",1]], [[1090,"304",1]], [[1089,"303",1]],    // Na Mg Fe
  [[1095,"309",1]], [[1098,"312",1]], [[1101,"315",1]],    // Zn Cu Mn
  [[1103,"317",1]], [[1100,"314",1]],                      // Se, iodine
- [[1104,"318",1],[1106,"320",3.33]],                      // vit A IU, else RAE ug x3.33
+ "VIT_A",                                                 // IU, see vitaminA()
  [[1110,"324",1],[1114,"328",40]],                        // vit D IU, else ug x40
  [[1109,"323",1.49]],                                     // vit E mg alpha-toc x1.49
  [[1165,"404",1]], [[1166,"405",1]], [[1175,"415",1]],    // B1 B2 B6
  [[1178,"418",1]], [[1177,"417",1],[1187,"431",1]],       // B12, folate
  [[1180,"421",1]], "EPA_DHA"];
 const EPA=[1278,"629"], DHA=[1272,"621"];
+const VA_IU=[1104,"318"], VA_RAE=[1106,"320"], RETINOL=[1105,"319"], B_CAR=[1107,"321"], A_CAR=[1108,"322"], CRYPTO=[1120,"334"];
 if(MAP.length!==NUTS.length) throw new Error("FDC MAP does not match NUTS");
+/**
+ * Vitamin A in IU. USDA's own IU field when the record has one (SR Legacy);
+ * otherwise USDA's definition of the IU from the components newer records do
+ * carry: 1 IU = 0.3 µg retinol = 0.6 µg β-carotene = 1.2 µg α-carotene or
+ * β-cryptoxanthin. Only as a last resort µg RAE × 3.33, which is right for
+ * retinol but understates carotene-rich plants about six-fold.
+ */
+function vitaminA(pick){
+  const iu = pick(...VA_IU); if(iu!=null) return iu;
+  const parts = [[RETINOL,0.3],[B_CAR,0.6],[A_CAR,1.2],[CRYPTO,1.2]].map(([k,per])=>{ const v=pick(...k); return v==null? null : v/per; });
+  if(parts.some(v=>v!=null)) return parts.reduce((a,v)=>a+(v||0),0);
+  const rae = pick(...VA_RAE); return rae==null? null : rae*3.33;
+}
 export function mapNutrients(food){
   const byId={}, byNum={};
   (food.foodNutrients||[]).forEach(fn=>{
@@ -108,7 +124,8 @@ export function mapNutrients(food){
   });
   const pick=(id,num)=> byId[id]!=null? byId[id] : (byNum[num]!=null? byNum[num] : null);
   return MAP.map(spec=>{
-    if(spec==="EPA_DHA") return (pick(...EPA)||0)+(pick(...DHA)||0);
+    if(spec==="EPA_DHA"){ const e=pick(...EPA), d=pick(...DHA); return e==null&&d==null ? null : (e||0)+(d||0); }
+    if(spec==="VIT_A") return vitaminA(pick);
     for(const[id,num,m]of spec){ const v=pick(id,num); if(v!=null) return v*m; }
-    return 0; });
+    return null; });
 }

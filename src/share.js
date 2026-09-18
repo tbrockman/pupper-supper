@@ -19,14 +19,14 @@ const PARAM = "r";
 const KEY_PARAM = "key";
 
 /* ---- compact positional form ---- */
-const r3 = v => Math.round(v*1000)/1000; // 3 dp is plenty for nutrients
+const r3 = v => v==null ? null : Math.round(v*1000)/1000; // 3 dp is plenty for nutrients; null = unknown
 function pack(S){
   return [VERSION, S.title, S.weight, S.activity,
     S.foods.map(x=>[x.name, x.amount, x.unit, x.per, x.src, x.per100.map(r3)]), S.weightUnit];
 }
 function unpack(a){
   if(!Array.isArray(a)) throw new Error("unknown recipe format");
-  const per100 = p => NUTS.map((_,j)=> p?.[j] ?? 0);
+  const per100 = p => NUTS.map((_,j)=> p?.[j] ?? null); // absent = unknown, not zero
   if(a[0]===1 && Array.isArray(a[5])) return {
     weight:a[1], activity:a[2], batchCups:a[3], cupsPerDay:a[4],
     foods: a[5].map(x=>({ name:x[0], cat:x[1], mode:x[2], qty:x[3], unit:x[4], gPerUnit:x[5], src:x[6], per100:per100(x[7]) })),

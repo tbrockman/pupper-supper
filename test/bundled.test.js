@@ -7,11 +7,12 @@ import { NUTS } from "../src/data.js";
 globalThis.localStorage ??= { getItem(){ return null; }, setItem(){}, key(){ return null; }, length: 0 };
 const { searchBundled } = await import("../src/fdc.js");
 
-test("every bundled food has 24 finite nutrient values and a source", () => {
+test("every bundled food has 24 nutrient values (a number, or null when unreported) and a source", () => {
   assert.ok(BUNDLED.length >= 40);
   for (const b of BUNDLED) {
     assert.equal(b.per100.length, NUTS.length, b.name);
-    assert.ok(b.per100.every(Number.isFinite), b.name);
+    assert.ok(b.per100.every(v => v === null || (Number.isFinite(v) && v >= 0)), b.name);
+    assert.ok(Number.isFinite(b.per100[0]) && Number.isFinite(b.per100[1]), `${b.name} has energy and protein`);
     assert.ok(b.src, b.name);
   }
   const names = BUNDLED.map(b => b.name);
@@ -32,4 +33,12 @@ test("spot-check values against USDA SR Legacy", () => {
   assert.equal(egg.per100[3], 56);    // calcium mg
   const sardine = BUNDLED.find(b => b.name.startsWith("Sardines"));
   assert.ok(sardine.per100[23] > 0.9, "sardines carry EPA+DHA");
+});
+
+test("unreported nutrients are null rather than a misleading zero", () => {
+  const iodine = NUTS.findIndex(n => n[0] === "Iodine");
+  for (const b of BUNDLED) if (b.src.startsWith("USDA")) assert.equal(b.per100[iodine], null, `${b.name}: SR Legacy / Foundation do not report iodine`);
+  assert.equal(BUNDLED.find(b => b.name === "Kelp powder").per100[iodine], 150000);
+  assert.equal(BUNDLED.find(b => b.name === "Chicken heart, raw").per100[NUTS.findIndex(n => n[0] === "Choline")], null);
+  assert.equal(BUNDLED.find(b => b.name === "Olive oil").per100[NUTS.findIndex(n => n[0] === "Vitamin D")], 0, "a reported zero stays zero");
 });
