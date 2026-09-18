@@ -21,7 +21,7 @@ export const WEIGHT_UNITS = { kg:1, lb:0.453592 };
 /** Feeding periods: days per period. */
 export const PERIODS = { day:1, week:7, month:30.4375 };
 
-export const DEFAULT_TITLE = "Pupper Supper";
+export const DEFAULT_TITLE = "pupper supper";
 
 export function newId(){ return Math.random().toString(36).slice(2); }
 

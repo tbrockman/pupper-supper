@@ -32,7 +32,7 @@ test("garbage in the hash is rejected", async () => {
 test("sanitize coerces a hostile recipe into a well-formed one", () => {
   const s = sanitize({ weight: "abc", title: 7, foods: [{ name: 42, unit: "stone", per: "fortnight", amount: { evil: 1 }, per100: "nope" }] });
   assert.equal(s.weight, EXAMPLE.weight);
-  assert.equal(s.title, "Pupper Supper");
+  assert.equal(s.title, "pupper supper");
   assert.equal(s.foods[0].name, "Unnamed");
   assert.equal("kind" in s.foods[0], false);
   assert.equal(s.foods[0].amount, "0");
@@ -53,7 +53,7 @@ test("old batch/day/week recipes migrate to expressions with the same grams per 
   assert.ok(s.foods.every(x => !("kind" in x)));
   assert.equal(s.foods[0].amount, "6*50*2/10");
   assert.equal(s.foods[0].src, "USDA 171287 · 6 egg × 50 g per batch");
-  assert.equal(s.title, "Pupper Supper");
+  assert.equal(s.title, "pupper supper");
 
   // a v1 share link still opens
   const packedV1 = [1, 22, 1.8, 10, 2, v1.foods.map(x => [x.name, x.cat, x.mode, x.qty, x.unit, x.gPerUnit, x.src, x.per100])];

@@ -19,16 +19,16 @@ function foodRow(it){
   return `<tr data-id="${esc(it.id)}" class="${open?"open":""}">
     <td class="foodname">
       ${editable({ value:it.name, cls:"name", attrs:`data-f="name" aria-label="Food name"`, label:"Rename" })}
-      ${editable({ value:it.src, cls:"note", attrs:`data-f="src" aria-label="Note or source"`, placeholder:"note or source", label:"Edit note" })}
     </td>
     <td class="num amount"><input type="text" inputmode="decimal" class="${bad?"bad":""}" value="${esc(it.amount)}" data-f="amount" aria-label="${esc(it.name)} amount" spellcheck="false"></td>
     <td><select data-f="unit" aria-label="unit">${opts(UNITS, it.unit)}</select></td>
     <td><select data-f="per" aria-label="per">${opts(PERIODS, it.per)}</select></td>
     <td class="num gday ${bad?"bad":""}">${gramsText(it)}</td>
-    <td class="actions"><button class="quiet iconbtn ${open?"on":""}" data-f="edit" title="${open?"Close":"Edit"} nutrients per 100 g" aria-pressed="${open}" aria-expanded="${open}">${icon("sliders")}</button><button class="quiet iconbtn" data-f="del" title="Remove" aria-label="Remove ${esc(it.name)}">${icon("trash")}</button></td></tr>`;
+    <td class="actions"><button class="quiet iconbtn ${open?"on":""}" data-f="edit" title="${open?"Close":"Edit"} nutritional information" aria-pressed="${open}" aria-expanded="${open}">${icon("sliders")}</button><button class="quiet iconbtn" data-f="del" title="Remove" aria-label="Remove ${esc(it.name)}">${icon("trash")}</button></td></tr>`;
 }
 function editorRow(it){
   return `<tr class="editor" data-id="${esc(it.id)}"><td colspan="6">
+    <label class="notefield">Note or source<input type="text" value="${esc(it.src)}" data-f="src" placeholder="where these numbers came from, batch size, brand\u2026" spellcheck="false" autocomplete="off"></label>
     <div class="nutgrid">${NUTS.map((n,j)=>
       `<label>${n[0]} ${n[1]} /100 g<input type="number" step="any" value="${+(+it.per100[j]).toFixed(3)}" data-f="n" data-j="${j}"></label>`).join("")}
     </div></td></tr>`;

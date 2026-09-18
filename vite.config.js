@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icons/*.png"],
       manifest: {
-        name: "Pupper Supper",
-        short_name: "Pupper Supper",
+        name: "pupper supper",
+        short_name: "pupper supper",
         description: "Plan a dog's daily diet and check it against the AAFCO adult-maintenance nutrient profile.",
         start_url: "/",
         scope: "/",

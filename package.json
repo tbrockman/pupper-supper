@@ -1,8 +1,8 @@
 {
-  "name": "lady-diet",
+  "name": "pupper-supper",
   "private": true,
   "type": "module",
-  "description": "Lady's Pupper Supper \u2014 static site deployed to Cloudflare Pages at puppersupper.theo.lol",
+  "description": "Lady's pupper supper \u2014 static site deployed to Cloudflare Pages at puppersupper.theo.lol",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

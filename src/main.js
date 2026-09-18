@@ -20,6 +20,8 @@ function useKey(k){
   if(!k) shareKey.checked = false;
 }
 keyBox.addEventListener("change", ()=> useKey(keyBox.value.trim()));
+shareKey.checked = !!store.get("lady.sharekey");
+shareKey.addEventListener("change", ()=> store.set("lady.sharekey", shareKey.checked));
 function toggleKeyPop(show = keyPop.hidden){
   keyPop.hidden = !show; keyBtn.setAttribute("aria-expanded", String(show));
   if(show){ closeResults(); keyBox.focus(); }
@@ -191,8 +193,7 @@ $("allcols").addEventListener("click", e=>{
   e.currentTarget.setAttribute("aria-pressed", String(on));
 });
 
-/* ---------- problems: one dismissable card under the search box ---------- */
-const alertsEl = $("alerts");
+/* ---------- problems: a dismissable notice at the top of the search results ---------- */
 function problemHtml(err){
   const link = txt => `<a href="${SIGNUP_URL}" target="_blank" rel="noopener">${txt} ${icon("external",12)}</a>`;
   const kind = err.kind || "http";
@@ -209,15 +210,11 @@ function problemHtml(err){
     ${detail?`<p>${detail}</p>`:""}${actions?`<div class="row">${actions}</div>`:""}</div>
     <button class="quiet iconbtn" data-act="close" aria-label="Dismiss">${icon("x",14)}</button></div>`;
 }
-function problem(err){
+/** Show a problem above whatever the results list holds (built-in matches stay usable). */
+function problem(err, below=""){
   console.warn("USDA problem:", err);
-  alertsEl.innerHTML = problemHtml(err);
+  open(problemHtml(err) + below);
 }
-alertsEl.addEventListener("click", e=>{
-  const act = e.target.closest("button[data-act]")?.dataset.act;
-  if(act==="close") alertsEl.innerHTML = "";
-  if(act==="key"){ alertsEl.innerHTML = ""; toggleKeyPop(true); keyBox.select(); }
-});
 
 /* ---------- ingredient search: a floating listbox with keyboard navigation ---------- */
 const resultsBox = $("results"), qBox = $("q");
@@ -259,7 +256,7 @@ async function doSearch(){
     open((usda ? `<div class="msg">USDA FoodData Central</div>${usda}` : `<div class="msg">No USDA results. Try simpler words (“sardine canned water”).</div>`)
        + (local ? `<div class="msg">built-in</div>${local}` : "")
        + demoRow());
-  }catch(err){ close(); problem(err); }
+  }catch(err){ const local = localOpts(q); problem(err, local ? `<div class="msg">built-in</div>${local}` : ""); }
 }
 async function choose(el){
   if(!el) return;
@@ -282,7 +279,7 @@ async function choose(el){
     addFood(f(hit?.description || `USDA ${id}`,"100","g","day",`USDA FDC ${id}${dataType?` (${dataType})`:""}`,per100),
       "Added at 100 g a day — adjust the amount");
     close(); qBox.value="";
-  }catch(err){ el.classList.remove("busy"); close(); problem(err); }
+  }catch(err){ el.classList.remove("busy"); problem(err, resultsBox.innerHTML.replace(/<div class="notice[\s\S]*?<\/div>\s*<\/div>/, "")); }
 }
 qBox.addEventListener("input", showLocal);
 qBox.addEventListener("focus", showLocal);
@@ -296,10 +293,14 @@ $("go").addEventListener("click", doSearch);
 resultsBox.addEventListener("mousemove", e=>{ const o = e.target.closest(".opt"); if(o){ const i = options().indexOf(o); if(i!==active) setActive(i); } });
 resultsBox.addEventListener("mousedown", e=> e.preventDefault()); // keep focus in the search box
 resultsBox.addEventListener("click", e=>{
-  if(e.target.closest("[data-act=key]")){ toggleKeyPop(true); return; }
+  const act = e.target.closest("button[data-act]")?.dataset.act;
+  if(act==="key"){ toggleKeyPop(true); keyBox.select(); return; }
+  if(act==="close"){ e.target.closest(".notice").remove(); if(!options().length && !resultsBox.querySelector(".opt, .msg")) close(); return; }
+  if(e.target.closest("a")) return;
   choose(e.target.closest(".opt"));
 });
-document.addEventListener("click", e=>{ if(!e.target.closest(".searchbar")) close(); });
+// a click whose target was removed by its own handler (the notice's ×) is not a click outside
+document.addEventListener("click", e=>{ if(e.target.isConnected && !e.target.closest(".searchbar")) close(); });
 
 /* ---------- iOS Safari zooms into any focused control under 16px; maximum-scale=1 stops that
    and, since iOS 10, still leaves pinch zoom alone. Applied only on iOS because Android

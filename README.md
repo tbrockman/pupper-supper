@@ -1,11 +1,9 @@
-# Pupper Supper
+# [pupper supper](https://puppersupper.theo.lol)
 
 Plan your dog's daily diet and check it against the AAFCO adult-maintenance
 nutrient profile.
 
 Vibe-coded, unverified, and not made by a veterinarian. 
-
-Live: https://puppersupper.theo.lol
 
 ## Layout
 
@@ -14,10 +12,10 @@ No framework, no server; one page, one stylesheet, plain ES modules, almost enti
 ```
 index.html        page markup (Vite entry)
 src/
-  main.js         boot, events, URL sync, menu, search, problem card
+  main.js         boot, events, URL sync, menu, search, problem notices
   data.js         AAFCO nutrient table, units, periods, the example diet
   icons.js        Lucide icons inlined as SVG
-  editable.js     inline editable text component (title, food names, notes)
+  editable.js     inline editable text component (title, food names)
   bundled.js      built-in ingredients (generated, see scripts/)
   expr.js         safe arithmetic evaluator for the grams/day column
   state.js        current diet, localStorage, daily maths, sanitize() + migration
