@@ -191,6 +191,8 @@ document.getElementById("tbl-in").addEventListener("input", e=>{
 $("allcols").addEventListener("click", e=>{
   const on = $("tbl-an").classList.toggle("allcols");
   e.currentTarget.setAttribute("aria-pressed", String(on));
+  e.currentTarget.classList.toggle("on", on);
+  e.currentTarget.title = on ? "Hide the per-day and minimum columns" : "Show the per-day and minimum columns";
 });
 
 /* ---------- problems: a dismissable notice at the top of the search results ---------- */

@@ -73,8 +73,9 @@ h2 .note{font-weight:400; font-size:.78rem; color:var(--ink-soft)}
 .tscroll{overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%}
 table{width:100%; border-collapse:collapse; font-size:.86rem}
 #tbl-an .c-range{width:32%}
-#allcols{display:none; font-size:.72rem; padding:.1rem .4rem; margin-left:.4rem}
-#allcols[aria-pressed=true]{color:var(--moss)}
+/* column toggle lives in the nutrient table's first header cell; only phones need it */
+.thx{display:inline-flex; align-items:center; gap:.3rem} /* centres the toggle on the text's line box, not its x-height */
+#allcols{display:none; padding:.1rem .2rem}
 td,th{padding:.28rem .35rem; border-bottom:1px solid var(--rule); text-align:left; vertical-align:middle}
 th{font-weight:500; color:var(--ink-soft); font-size:.76rem}
 td.num, th.num{text-align:right}
@@ -171,7 +172,7 @@ tr.flash td{animation:rowflash 1.6s ease-out}
 .info:hover, .info:focus{color:var(--moss); outline:none}
 .info:focus-visible{outline:2px solid var(--moss); outline-offset:2px}
 .tip{position:fixed; z-index:50; background:var(--ink); color:var(--bone); padding:.5rem .65rem; border-radius:4px;
-  font-size:.74rem; line-height:1.4; max-width:280px; pointer-events:none; box-shadow:0 6px 20px rgba(34,56,46,.2)}
+  font-size:.74rem; line-height:1.4; max-width:280px; pointer-events:none}
 .tip[hidden]{display:none}
 .vitals{display:flex; gap:2.2rem; flex-wrap:wrap; padding:.9rem 0 .3rem}
 .vital .v{font-size:1.5rem; font-weight:600; letter-spacing:-.01em}

@@ -1,10 +1,10 @@
 /* Lucide icons, inlined as SVG strings at render time (no runtime CDN, so the strict CSP holds). */
 import { createElement, Info, Pencil, Plus, Search, Link2, FilePlus2, BookOpen, ChevronRight, ChevronDown,
-  Trash2, ExternalLink, Copy, Check, TriangleAlert, KeyRound, Ellipsis, SlidersHorizontal, X, Code2, StickyNote } from "lucide";
+  Trash2, ExternalLink, Copy, Check, TriangleAlert, KeyRound, Ellipsis, SlidersHorizontal, X, Code2, StickyNote, Columns3 } from "lucide";
 
 const NODES = { info:Info, pencil:Pencil, plus:Plus, search:Search, link:Link2, "file-plus":FilePlus2, book:BookOpen,
   "chevron-right":ChevronRight, "chevron-down":ChevronDown, trash:Trash2, external:ExternalLink, copy:Copy, check:Check,
-  alert:TriangleAlert, key:KeyRound, more:Ellipsis, sliders:SlidersHorizontal, x:X, code:Code2, note:StickyNote };
+  alert:TriangleAlert, key:KeyRound, more:Ellipsis, sliders:SlidersHorizontal, x:X, code:Code2, note:StickyNote, columns:Columns3 };
 const cache = new Map();
 
 /** SVG markup for a named icon; size in px. */
